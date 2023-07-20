@@ -243,15 +243,15 @@ inline bool compareGroupEncodings(const std::vector<int>& A, const std::vector<i
 		counters[B[i]]--;
 	}
 
-	int sum = 0;
 	for (int i = 0; i < 10; ++i) {
-		sum += counters[i] * counters[i];
+		if (counters[i] != 0)
+			return false;
 	}
 
-	return sum == 0;
+	return true;
 }
 
-inline bool compareEncodings(const std::vector<int>& A, const std::vector<int>& B){
+inline bool compareEncodings(const std::vector<int>& A, const std::vector<int>& B) {
 	int counters[64]{};
 
 	for (int i = 0; i < A.size(); ++i) {
@@ -259,12 +259,11 @@ inline bool compareEncodings(const std::vector<int>& A, const std::vector<int>& 
 		counters[B[i]]--;
 	}
 
-	int sum = 0;
 	for (int i = 0; i < 64; ++i) {
-		sum += counters[i] * counters[i];
+		if (counters[i] != 0)
+			return false;
 	}
-
-	return sum == 0;
+	return true;
 }
 
 
@@ -374,7 +373,7 @@ void write(const std::vector<Tet>& v) {
 int main() {
 
 
-	write(generate(4));
+//	write(generate(4));
 /*
 	Tet A{6, {
 			{0, 0, 0},
@@ -397,7 +396,7 @@ int main() {
 	std::cout << shiftCompare(A, B);
 	return 0;
 	*/
-/*
+
 
 	Tet a{4, {
 			{0, 0, 0},
@@ -406,7 +405,7 @@ int main() {
 			{1, 0, 0},
 	}};
 
-#define positive
+//#define positive
 //#define test
 
 #ifdef positive
@@ -432,13 +431,13 @@ int main() {
 
 	for (int i = 0; i < 1000000; ++i) {
 #ifdef test
-		if (groupCompareV(A, B))
+		if (compareGroupEncodings(A, B))
 #endif
 		j += spinCompare(a, b);
 	}
 
 	std::cout << j;
-*/
+
 
 	return 0;
 }
