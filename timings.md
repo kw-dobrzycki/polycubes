@@ -1,3 +1,10 @@
+Original
+
+|          | test  | don't test |
+|----------|-------|------------|
+| positive | 7.11  | 5.478      |
+| negative | 1.603 | 28.513     |
+
 Using own groupCompareV with fixed square error, spin uses mutliset
 
 |          | test  | don't test |
@@ -12,7 +19,3 @@ spin now uses groupcomparev
 | positive | 0.55 | 0.559      |
 | negative | 0.38 | 8.252      |
 
-|          | test | don't test |
-|----------|------|------------|
-| positive |      |            |
-| negative |      |            |

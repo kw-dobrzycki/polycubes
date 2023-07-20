@@ -363,9 +363,9 @@ void write(const std::vector<Tet>& v) {
 
 int main() {
 
-	/*
-	write(generate(5));
 
+	write(generate(4));
+/*
 	Tet A{6, {
 			{0, 0, 0},
 			{1, 0, 0},
@@ -387,6 +387,7 @@ int main() {
 	std::cout << shiftCompare(A, B);
 	return 0;
 	*/
+/*
 
 	Tet a{4, {
 			{0, 0, 0},
@@ -427,6 +428,7 @@ int main() {
 	}
 
 	std::cout << j;
+*/
 
 	return 0;
 }
