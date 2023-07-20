@@ -406,7 +406,7 @@ int main() {
 	}};
 
 //#define positive
-//#define test
+#define test
 
 #ifdef positive
 

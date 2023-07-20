@@ -19,3 +19,16 @@ spin now uses groupcomparev
 | positive | 0.55 | 0.559      |
 | negative | 0.38 | 8.252      |
 
+after bug fixing
+
+|          | test  | don't test |
+|----------|-------|------------|
+| positive | 1.970 | 1.913      |
+| negative | 0.46  | 10.773     |
+
+after loop optim
+
+|          | test  | don't test |
+|----------|-------|------------|
+| positive | 1.652 | 1.663      |
+| negative | 0.030 | 8.406      |
