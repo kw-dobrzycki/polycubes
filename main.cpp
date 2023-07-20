@@ -253,13 +253,12 @@ inline bool groupCompareV(const std::vector<int>& A, const std::vector<int>& B) 
 
 
 bool spinCompare(Tet& a, Tet& b) {
-	auto Acode = a.encode();
-	auto A = std::multiset(Acode.begin(), Acode.end());
+	auto Acode = a.groupEncode();
 	//spin on top
 	for (int i = 0; i < 4; ++i) {
 		b.rotY(1);
-		auto Bcode = b.encode();
-		if (std::multiset(Bcode.begin(), Bcode.end()) == A)
+		auto Bcode = b.groupEncode();
+		if (groupCompareV(Acode, Bcode))
 			return true;
 	}
 
@@ -267,8 +266,8 @@ bool spinCompare(Tet& a, Tet& b) {
 	b.rotX(1);
 	for (int i = 0; i < 4; ++i) {
 		b.rotZ(1);
-		auto Bcode = b.encode();
-		if (std::multiset(Bcode.begin(), Bcode.end()) == A)
+		auto Bcode = b.groupEncode();
+		if (groupCompareV(Acode, Bcode))
 			return true;
 	}
 
@@ -276,8 +275,8 @@ bool spinCompare(Tet& a, Tet& b) {
 	b.rotY(1);
 	for (int i = 0; i < 4; ++i) {
 		b.rotX(1);
-		auto Bcode = b.encode();
-		if (std::multiset(Bcode.begin(), Bcode.end()) == A)
+		auto Bcode = b.groupEncode();
+		if (groupCompareV(Acode, Bcode))
 			return true;
 	}
 
@@ -285,8 +284,8 @@ bool spinCompare(Tet& a, Tet& b) {
 	b.rotY(1);
 	for (int i = 0; i < 4; ++i) {
 		b.rotZ(1);
-		auto Bcode = b.encode();
-		if (std::multiset(Bcode.begin(), Bcode.end()) == A)
+		auto Bcode = b.groupEncode();
+		if (groupCompareV(Acode, Bcode))
 			return true;
 	}
 
@@ -294,8 +293,8 @@ bool spinCompare(Tet& a, Tet& b) {
 	b.rotY(1);
 	for (int i = 0; i < 4; ++i) {
 		b.rotX(1);
-		auto Bcode = b.encode();
-		if (std::multiset(Bcode.begin(), Bcode.end()) == A)
+		auto Bcode = b.groupEncode();
+		if (groupCompareV(Acode, Bcode))
 			return true;
 	}
 
@@ -304,8 +303,8 @@ bool spinCompare(Tet& a, Tet& b) {
 	b.rotX(1);
 	for (int i = 0; i < 4; ++i) {
 		b.rotY(1);
-		auto Bcode = b.encode();
-		if (std::multiset(Bcode.begin(), Bcode.end()) == A)
+		auto Bcode = b.groupEncode();
+		if (groupCompareV(Acode, Bcode))
 			return true;
 	}
 
@@ -397,7 +396,7 @@ int main() {
 	}};
 
 #define positive
-#define test
+//#define test
 
 #ifdef positive
 
@@ -424,7 +423,7 @@ int main() {
 #ifdef test
 		if (groupCompareV(A, B))
 #endif
-			j += spinCompare(a, b);
+		j += spinCompare(a, b);
 	}
 
 	std::cout << j;
