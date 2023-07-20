@@ -5,7 +5,7 @@ Original
 | positive | 7.11  | 5.478      |
 | negative | 1.603 | 28.513     |
 
-Using own groupCompareV with fixed square error, spin uses mutliset
+Using own compareGroupEncodings with fixed square error, spin uses mutliset
 
 |          | test  | don't test |
 |----------|-------|------------|

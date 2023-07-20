@@ -235,7 +235,7 @@ struct Tet {
 	}
 };
 
-inline bool groupCompareV(const std::vector<int>& A, const std::vector<int>& B) {
+inline bool compareGroupEncodings(const std::vector<int>& A, const std::vector<int>& B) {
 	int counters[10]{};
 
 	for (int i = 0; i < A.size(); ++i) {
@@ -244,7 +244,23 @@ inline bool groupCompareV(const std::vector<int>& A, const std::vector<int>& B) 
 	}
 
 	int sum = 0;
+	for (int i = 0; i < 10; ++i) {
+		sum += counters[i] * counters[i];
+	}
+
+	return sum == 0;
+}
+
+inline bool compareEncodings(const std::vector<int>& A, const std::vector<int>& B){
+	int counters[64]{};
+
 	for (int i = 0; i < A.size(); ++i) {
+		counters[A[i]]++;
+		counters[B[i]]--;
+	}
+
+	int sum = 0;
+	for (int i = 0; i < 64; ++i) {
 		sum += counters[i] * counters[i];
 	}
 
@@ -253,12 +269,11 @@ inline bool groupCompareV(const std::vector<int>& A, const std::vector<int>& B) 
 
 
 bool spinCompare(Tet& a, Tet& b) {
-	auto Acode = a.groupEncode();
+	auto Acode = a.encode();
 	//spin on top
 	for (int i = 0; i < 4; ++i) {
 		b.rotY(1);
-		auto Bcode = b.groupEncode();
-		if (groupCompareV(Acode, Bcode))
+		if (compareEncodings(Acode, b.encode()))
 			return true;
 	}
 
@@ -266,8 +281,7 @@ bool spinCompare(Tet& a, Tet& b) {
 	b.rotX(1);
 	for (int i = 0; i < 4; ++i) {
 		b.rotZ(1);
-		auto Bcode = b.groupEncode();
-		if (groupCompareV(Acode, Bcode))
+		if (compareEncodings(Acode, b.encode()))
 			return true;
 	}
 
@@ -275,8 +289,7 @@ bool spinCompare(Tet& a, Tet& b) {
 	b.rotY(1);
 	for (int i = 0; i < 4; ++i) {
 		b.rotX(1);
-		auto Bcode = b.groupEncode();
-		if (groupCompareV(Acode, Bcode))
+		if (compareEncodings(Acode, b.encode()))
 			return true;
 	}
 
@@ -284,8 +297,7 @@ bool spinCompare(Tet& a, Tet& b) {
 	b.rotY(1);
 	for (int i = 0; i < 4; ++i) {
 		b.rotZ(1);
-		auto Bcode = b.groupEncode();
-		if (groupCompareV(Acode, Bcode))
+		if (compareEncodings(Acode, b.encode()))
 			return true;
 	}
 
@@ -293,8 +305,7 @@ bool spinCompare(Tet& a, Tet& b) {
 	b.rotY(1);
 	for (int i = 0; i < 4; ++i) {
 		b.rotX(1);
-		auto Bcode = b.groupEncode();
-		if (groupCompareV(Acode, Bcode))
+		if (compareEncodings(Acode, b.encode()))
 			return true;
 	}
 
@@ -303,8 +314,7 @@ bool spinCompare(Tet& a, Tet& b) {
 	b.rotX(1);
 	for (int i = 0; i < 4; ++i) {
 		b.rotY(1);
-		auto Bcode = b.groupEncode();
-		if (groupCompareV(Acode, Bcode))
+		if (compareEncodings(Acode, b.encode()))
 			return true;
 	}
 
@@ -329,7 +339,7 @@ std::vector<Tet> generate(unsigned int i) {
 
 			for (auto& u: unique) {
 				//if there's a new group, keep true, check next u
-				if (!groupCompareV(u.groupEncode(), buildCode))
+				if (!compareGroupEncodings(u.groupEncode(), buildCode))
 					continue;
 
 				//if all groups match, spin
