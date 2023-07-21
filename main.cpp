@@ -2,45 +2,33 @@
 #include <set>
 #include <vector>
 #include <fstream>
+#include "groupOf.h"
+#include <cstring>
 
-struct Vec {
+struct Pos {
 	int x, y, z;
 
-	Vec operator+(const Vec& v) const {
+	Pos operator+(const Pos& v) const {
 		return {x + v.x, y + v.y, z + v.z};
 	}
 
-	Vec& operator+=(const Vec& v) {
+	Pos& operator+=(const Pos& v) {
 		x += v.x;
 		y += v.y;
 		z += v.z;
 		return *this;
 	}
 
-	bool operator==(const Vec& v) const {
+	bool operator==(const Pos& v) const {
 		return x == v.x && y == v.y && z == v.z;
 	}
 };
 
-int opposite(int i) {
-	switch (i % 6) {
-		case 0:
-			return 5;
-		case 1:
-			return 3;
-		case 2:
-			return 4;
-		case 3:
-			return 1;
-		case 4:
-			return 2;
-		case 5:
-			return 0;
-	}
-	return 0; // never happens
-}
+int opposite[]{
+		5, 3, 4, 1, 2, 0
+};
 
-const Vec offsets[]{
+const Pos offsets[]{
 		{0,  1,  0},
 		{0,  0,  -1},
 		{1,  0,  0},
@@ -68,8 +56,8 @@ const int next[]{0, 16, 1, 36, 32, 24, 5, 19, 4, 12, 33, 52, 18, 25, 21, 29, 8, 
 
 const int lengths[]{1, 6, 12, 8, 3, 12, 12, 3, 6, 1};
 
-const int groupOf[]{0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 4, 5, 2, 3, 5, 6, 1, 2, 2, 3, 4, 5, 5, 6, 2, 3, 5, 6, 5, 6, 7, 8, 1,
-					4, 2, 5, 2, 5, 3, 6, 2, 5, 5, 7, 3, 6, 6, 8, 2, 5, 3, 6, 5, 7, 6, 8, 3, 6, 6, 8, 6, 8, 8, 9};
+const int groupOfSelf[]{0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 4, 5, 2, 3, 5, 6, 1, 2, 2, 3, 4, 5, 5, 6, 2, 3, 5, 6, 5, 6, 7, 8,
+						1, 4, 2, 5, 2, 5, 3, 6, 2, 5, 5, 7, 3, 6, 6, 8, 2, 5, 3, 6, 5, 7, 6, 8, 3, 6, 6, 8, 6, 8, 8, 9};
 
 struct Tet {
 
@@ -83,25 +71,56 @@ struct Tet {
 	/**
 	 * Coordinates of each block. THIS FIELD IS NOT MAINTAINED FOR EXTENDED FUNCTIONALITY.
 	 */
-	std::vector<Vec> coords;
+	std::vector<Pos> coords;
 
-	Tet(unsigned int n, const std::vector<Vec>& coordinates) : n(n), pieces(6 * n), coords(coordinates) {
+	std::vector<int> neighbours;
+
+	Tet(unsigned int n, const std::vector<Pos>& coordinates)
+			: n(n),
+			  pieces(6 * n),
+			  coords(coordinates),
+			  neighbours(6 * n) {
+
+		//decode connectivity (name the pieces for now)
 		for (int i = 0; i < n; ++i) {
 			for (int j = 0; j < 6; ++j) {
+				auto offset = coordinates[i] + offsets[j];
 				//go through each face and check for a block at that coordinate
 				for (int k = 0; k < n; ++k) {
-					if (coordinates[i] + offsets[j] == coordinates[k]) {
+					if (offset == coordinates[k]) {
 						pieces[i * 6 + j] = k + 1; //names start from 1
+						neighbours[i * 6 + j] = k + 1; //just like names but these don't change
 					}
+				}
+			}
+		}
+
+		//decode neighbour types
+		for (int i = 0; i < n; ++i) {
+			for (int j = 0; j < 6; ++j) {
+				int neighbour = i * 6 + j;
+				if (pieces[neighbour]) {
+					int neighbourName = pieces[neighbour] - 1;
+					//calculate the group of the neighbour
+					int sum = 0;
+					for (int k = 0; k < 6; ++k) {
+						sum += (pieces[neighbourName * 6 + k] > 0) << (5 - k);
+					}
+					pieces[neighbour] = groupOfSelf[sum];
 				}
 			}
 		}
 	}
 
-	Tet(unsigned int n, const std::vector<int>& pieces, const std::vector<Vec>& coords)
+	/**
+	 * DO NOT USE THIS FOR EXPERIMENTATION
+	 */
+	Tet(unsigned int n, const std::vector<int>& pieces, const std::vector<Pos>& coords,
+		const std::vector<int>& neighbours)
 			: n(n),
 			  pieces(pieces),
-			  coords(coords) {}
+			  coords(coords),
+			  neighbours(neighbours) {}
 
 	/**
 	 * THIS FUNCTION DOES NOT UPDATE COORDINATES.
@@ -143,14 +162,14 @@ struct Tet {
 		return rot(i, shift);
 	}
 
-	std::vector<Vec> getFreeSpaces() const {
+	std::vector<Pos> getFreeSpaces() const {
 		std::set<int> unique;
-		std::vector<Vec> spaces;
+		std::vector<Pos> spaces;
 
 		for (int i = 0; i < n; ++i) {
 			for (int j = 0; j < 6; ++j) {
 				if (!pieces[i * 6 + j]) {
-					Vec space = coords[i] + offsets[j];
+					Pos space = coords[i] + offsets[j];
 					bool seen = unique.contains(space.y * n * n + space.z * n + space.x);
 					if (!seen) {
 						unique.insert(seen);
@@ -163,9 +182,10 @@ struct Tet {
 		return spaces;
 	}
 
-	Tet insert(const Vec& block) const {
+	Tet insert(const Pos& block) const {
 		auto c_pieces = pieces;
 		auto c_coords = coords;
+		auto c_neighbours = neighbours;
 
 		c_pieces.push_back(0);
 		c_pieces.push_back(0);
@@ -173,18 +193,54 @@ struct Tet {
 		c_pieces.push_back(0);
 		c_pieces.push_back(0);
 		c_pieces.push_back(0);
+		c_neighbours.push_back(0);
+		c_neighbours.push_back(0);
+		c_neighbours.push_back(0);
+		c_neighbours.push_back(0);
+		c_neighbours.push_back(0);
+		c_neighbours.push_back(0);
 		c_coords.push_back(block);
 
+		//find neighbours
 		for (int i = 0; i < 6; ++i) {
 			for (int j = 0; j < n; ++j) {
-				if (coords[j] == block + offsets[i]) {
-					c_pieces[j * 6 + opposite(i)] = n + 1;
-					c_pieces[n * 6 + i] = j + 1;
+				if (block + offsets[i] == coords[j]) {
+					c_neighbours[n * 6 + i] = j + 1; //names start at 1
+					c_neighbours[j * 6 + opposite[i]] = n + 1;
 				}
 			}
 		}
 
-		return Tet{n + 1, c_pieces, c_coords};
+		int selfType = 0; //depends on the piece type of neighbours, not neighbourhood type
+		for (int k = 0; k < 6; ++k) {
+			selfType += (c_neighbours[n * 6 + k] > 0) << (5 - k);
+		}
+
+
+		//change 0 bits of direct neighbours to the self group of new block.
+		for (int i = 0; i < 6; ++i) {
+			int dirNeighbour = c_neighbours[n * 6 + i];
+			if (dirNeighbour) {
+				c_pieces[(dirNeighbour - 1) * 6 + opposite[i]] = groupOfSelf[selfType];
+
+				//compute new self type of the neighbour for indirect neighbours to update (this includes block)
+				int neighbourType = 0;
+				for (int k = 0; k < 6; ++k) {
+					neighbourType += (c_neighbours[(dirNeighbour - 1) * 6 + k] > 0) << (5 - k);
+				}
+
+
+				//change non-0 bits of indirect neighbours
+				for (int j = 0; j < 6; ++j) {
+					int indirNeighbour = c_neighbours[(dirNeighbour - 1) * 6 + j];
+					if (indirNeighbour) {
+						c_pieces[(indirNeighbour - 1) * 6 + opposite[j]] = groupOfSelf[neighbourType];
+					}
+				}
+			}
+		}
+
+		return Tet{n + 1, c_pieces, c_coords, c_neighbours};
 	}
 
 	int shortestGroup() const {
@@ -192,9 +248,9 @@ struct Tet {
 		for (int j = 0; j < n; ++j) {
 			int x = 0;
 			for (int k = 0; j < 6; ++j) {
-				x += (pieces[j * 6 + k] > 0) * (1 << (5 - k));
+				x += (pieces[j * 6 + k] > 0) << (5 - k);
 			}
-			int group = groupOf[x];
+			int group = groupOfSelf[x];
 			i = std::min(lengths[i], lengths[group]);
 		}
 		return i;
@@ -203,11 +259,14 @@ struct Tet {
 	std::vector<int> groupEncode() const {
 		std::vector<int> code(n);
 		for (int i = 0; i < n; ++i) {
-			int x = 0;
-			for (int j = 0; j < 6; ++j) {
-				x += (pieces[i * 6 + j] > 0) * (1 << (5 - j));
-			}
-			code[i] = groupOf[x];
+			int x = pieces[i * 6 + 0] * 100000 +
+					pieces[i * 6 + 1] * 10000 +
+					pieces[i * 6 + 2] * 1000 +
+					pieces[i * 6 + 3] * 100 +
+					pieces[i * 6 + 4] * 10 +
+					pieces[i * 6 + 5];
+
+			code[i] = groupOfNeighbour[x];
 		}
 		return code;
 	}
@@ -215,10 +274,13 @@ struct Tet {
 	std::vector<int> encode() const {
 		std::vector<int> code(n);
 		for (int i = 0; i < n; ++i) {
-			int x = 0;
-			for (int j = 0; j < 6; ++j) {
-				x += (pieces[i * 6 + j] > 0) * (1 << (5 - j));
-			}
+			int x = pieces[i * 6 + 0] * 100000 +
+					pieces[i * 6 + 1] * 10000 +
+					pieces[i * 6 + 2] * 1000 +
+					pieces[i * 6 + 3] * 100 +
+					pieces[i * 6 + 4] * 10 +
+					pieces[i * 6 + 5];
+
 			code[i] = x;
 		}
 		return code;
@@ -236,14 +298,15 @@ struct Tet {
 };
 
 inline bool compareGroupEncodings(const std::vector<int>& A, const std::vector<int>& B) {
-	int counters[10]{};
+	thread_local int* counters = new int[127105]();
+	memset(counters, 0, sizeof(int) * 43450);
 
 	for (int i = 0; i < A.size(); ++i) {
 		counters[A[i]]++;
 		counters[B[i]]--;
 	}
 
-	for (int i = 0; i < 10; ++i) {
+	for (int i = 0; i < 43450; ++i) {
 		if (counters[i] != 0)
 			return false;
 	}
@@ -252,16 +315,18 @@ inline bool compareGroupEncodings(const std::vector<int>& A, const std::vector<i
 }
 
 inline bool compareEncodings(const std::vector<int>& A, const std::vector<int>& B) {
-	int counters[64]{};
+	thread_local int* counters = new int[1000000]();
+	memset(counters, 0, sizeof(int) * 1000000);
 
 	for (int i = 0; i < A.size(); ++i) {
 		counters[A[i]]++;
 		counters[B[i]]--;
 	}
 
-	for (int i = 0; i < 64; ++i) {
-		if (counters[i] != 0)
+	for (int i = 0; i < 1000000; ++i) {
+		if (counters[i] != 0) {
 			return false;
+		}
 	}
 	return true;
 }
@@ -322,7 +387,7 @@ bool spinCompare(Tet& a, Tet& b) {
 
 std::vector<Tet> generate(unsigned int i) {
 	if (i <= 1) {
-		return std::vector{Tet(i, std::vector<Vec>(1, {0, 0, 0}))};
+		return std::vector{Tet(i, std::vector<Pos>(1, {0, 0, 0}))};
 	}
 
 	auto previous = generate(i - 1);
@@ -337,8 +402,9 @@ std::vector<Tet> generate(unsigned int i) {
 			bool newShape = true;
 
 			for (auto& u: unique) {
+				auto uCode = u.groupEncode();
 				//if there's a new group, keep true, check next u
-				if (!compareGroupEncodings(u.groupEncode(), buildCode))
+				if (!compareGroupEncodings(uCode, buildCode))
 					continue;
 
 				//if all groups match, spin
@@ -372,9 +438,17 @@ void write(const std::vector<Tet>& v) {
 
 int main() {
 
+	Tet C{5, {
+			{0, 0, 0},
+			{1, 0, 0},
+			{2, 0, 0},
+			{2, 1, 0},
+			{2, 2, 0}
+	}};
 
-//	write(generate(4));
-/*
+	Tet c = C.insert({2, -1, 0});
+
+
 	Tet A{6, {
 			{0, 0, 0},
 			{1, 0, 0},
@@ -393,10 +467,11 @@ int main() {
 			{3, 0, 0}
 	}};
 
-	std::cout << shiftCompare(A, B);
-	return 0;
-	*/
 
+	write(generate(4));
+
+
+#ifdef testing
 
 	Tet a{4, {
 			{0, 0, 0},
@@ -437,7 +512,7 @@ int main() {
 	}
 
 	std::cout << j;
-
+#endif
 
 	return 0;
-}
+};
