@@ -298,37 +298,71 @@ struct Tet {
 };
 
 inline bool compareGroupEncodings(const std::vector<int>& A, const std::vector<int>& B) {
-	thread_local int* counters = new int[127105]();
-	memset(counters, 0, sizeof(int) * 43450);
+	thread_local int* counters = new int[43450]();
+	thread_local int* indices = new int[50](); //note this implementation supports maximum 25 blocks
+	int items = 0;
 
 	for (int i = 0; i < A.size(); ++i) {
 		counters[A[i]]++;
 		counters[B[i]]--;
+		indices[items++] = A[i];
+		indices[items++] = B[i];
 	}
 
-	for (int i = 0; i < 43450; ++i) {
-		if (counters[i] != 0)
-			return false;
+	bool equal = true;
+	int tail = 0;
+	for (int i = 0; i < items; ++i) {
+		if (counters[indices[i]] != 0) {
+			equal = false;
+			tail = i;
+			break;
+		}
+
+		//counter is 0 but index is not, clean up index
+		indices[i] = 0;
 	}
 
-	return true;
+	//clean up the rest
+	for (int i = tail; i < items; ++i) {
+		counters[indices[i]] = 0;
+		indices[i] = 0;
+	}
+
+	return equal;
 }
 
 inline bool compareEncodings(const std::vector<int>& A, const std::vector<int>& B) {
 	thread_local int* counters = new int[1000000]();
-	memset(counters, 0, sizeof(int) * 1000000);
+	thread_local int* indices = new int[50](); //note this implementation supports maximum 25 blocks
+	int items = 0;
 
 	for (int i = 0; i < A.size(); ++i) {
 		counters[A[i]]++;
 		counters[B[i]]--;
+		indices[items++] = A[i];
+		indices[items++] = B[i];
 	}
 
-	for (int i = 0; i < 1000000; ++i) {
-		if (counters[i] != 0) {
-			return false;
+	bool equal = true;
+	int tail = 0;
+	for (int i = 0; i < items; ++i) {
+		if (counters[indices[i]] != 0) {
+			equal = false;
+			tail = i;
+			break;
 		}
+
+		//counter is 0 but index is not, clean up index
+		indices[i] = 0;
 	}
-	return true;
+
+	//clean up the rest
+	for (int i = tail; i < items; ++i) {
+		counters[indices[i]] = 0;
+		indices[i] = 0;
+	}
+
+	return equal;
 }
 
 
@@ -438,39 +472,9 @@ void write(const std::vector<Tet>& v) {
 
 int main() {
 
-	Tet C{5, {
-			{0, 0, 0},
-			{1, 0, 0},
-			{2, 0, 0},
-			{2, 1, 0},
-			{2, 2, 0}
-	}};
-
-	Tet c = C.insert({2, -1, 0});
-
-
-	Tet A{6, {
-			{0, 0, 0},
-			{1, 0, 0},
-			{2, 0, 0},
-			{2, 1, 0},
-			{2, 2, 0},
-			{2, -1, 0}
-	}};
-
-	Tet B{6, {
-			{0, 0, 0},
-			{0, 1, 0},
-			{0, -1, 0},
-			{1, 0, 0},
-			{2, 0, 0},
-			{3, 0, 0}
-	}};
-
-
 	write(generate(4));
 
-
+//#define testing
 #ifdef testing
 
 	Tet a{4, {
