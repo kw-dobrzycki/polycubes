@@ -165,7 +165,6 @@ struct Tet {
 	std::vector<Pos> getFreeSpaces() const {
 		std::set<int> unique;
 		std::vector<Pos> spaces;
-
 		for (int i = 0; i < n; ++i) {
 			for (int j = 0; j < 6; ++j) {
 				if (!pieces[i * 6 + j]) {
@@ -175,10 +174,10 @@ struct Tet {
 						unique.insert(seen);
 						spaces.push_back(space);
 					}
-
 				}
 			}
 		}
+
 		return spaces;
 	}
 
@@ -366,7 +365,7 @@ inline bool compareEncodings(const std::vector<int>& A, const std::vector<int>& 
 }
 
 
-bool spinCompare(Tet& a, Tet& b) {
+bool spinCompare(Tet a, Tet b) {
 	auto Acode = a.encode();
 	//spin on top
 	for (int i = 0; i < 4; ++i) {
@@ -438,8 +437,8 @@ std::vector<Tet> generate(unsigned int i) {
 			for (auto& u: unique) {
 				auto uCode = u.groupEncode();
 				//if there's a new group, keep true, check next u
-				if (!compareGroupEncodings(uCode, buildCode))
-					continue;
+//				if (!compareGroupEncodings(uCode, buildCode))
+//					continue;
 
 				//if all groups match, spin
 				//if same at some rotation, set false, break
@@ -472,7 +471,7 @@ void write(const std::vector<Tet>& v) {
 
 int main() {
 
-	write(generate(4));
+	std::cout << generate(7).size();
 
 //#define testing
 #ifdef testing
@@ -485,7 +484,7 @@ int main() {
 	}};
 
 //#define positive
-#define test
+//#define test
 
 #ifdef positive
 
