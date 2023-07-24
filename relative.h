@@ -78,9 +78,9 @@ struct Tet {
 	void print() const;
 };
 
-inline bool compareGroupEncodings(const std::vector<int>& A, const std::vector<int>& B);
+inline bool compareGroupEncodings(const std::vector<int>& A, const std::vector<int>& B, unsigned int n);
 
-inline bool compareEncodings(const std::vector<int>& A, const std::vector<int>& B);
+inline bool compareEncodings(const std::vector<int>& A, const std::vector<int>& B, unsigned int n);
 
 
 bool spinCompare(Tet a, Tet b);

@@ -197,9 +197,9 @@ void Tet::print() const {
 	std::cout << std::endl;
 }
 
-bool compareGroupEncodings(const std::vector<int>& A, const std::vector<int>& B) {
+bool compareGroupEncodings(const std::vector<int>& A, const std::vector<int>& B, unsigned int n) {
 	thread_local int* counters = new int[43450]();
-	thread_local int* indices = new int[50](); //note this implementation supports maximum 25 blocks
+	thread_local int* indices = new int[n]();
 	int items = 0;
 
 	for (int i = 0; i < A.size(); ++i) {
@@ -231,9 +231,9 @@ bool compareGroupEncodings(const std::vector<int>& A, const std::vector<int>& B)
 	return equal;
 }
 
-bool compareEncodings(const std::vector<int>& A, const std::vector<int>& B) {
+bool compareEncodings(const std::vector<int>& A, const std::vector<int>& B, unsigned int n) {
 	thread_local int* counters = new int[1000000]();
-	thread_local int* indices = new int[50](); //note this implementation supports maximum 25 blocks
+	thread_local int* indices = new int[n]();
 	int items = 0;
 
 	for (int i = 0; i < A.size(); ++i) {
@@ -270,7 +270,7 @@ bool spinCompare(Tet a, Tet b) {
 	//spin on top
 	for (int i = 0; i < 4; ++i) {
 		b.rotY(1);
-		if (compareEncodings(Acode, b.encode()))
+		if (compareEncodings(Acode, b.encode(), Acode.size()))
 			return true;
 	}
 
@@ -278,7 +278,7 @@ bool spinCompare(Tet a, Tet b) {
 	b.rotX(1);
 	for (int i = 0; i < 4; ++i) {
 		b.rotZ(1);
-		if (compareEncodings(Acode, b.encode()))
+		if (compareEncodings(Acode, b.encode(), Acode.size()))
 			return true;
 	}
 
@@ -286,7 +286,7 @@ bool spinCompare(Tet a, Tet b) {
 	b.rotY(1);
 	for (int i = 0; i < 4; ++i) {
 		b.rotX(1);
-		if (compareEncodings(Acode, b.encode()))
+		if (compareEncodings(Acode, b.encode(), Acode.size()))
 			return true;
 	}
 
@@ -294,7 +294,7 @@ bool spinCompare(Tet a, Tet b) {
 	b.rotY(1);
 	for (int i = 0; i < 4; ++i) {
 		b.rotZ(1);
-		if (compareEncodings(Acode, b.encode()))
+		if (compareEncodings(Acode, b.encode(), Acode.size()))
 			return true;
 	}
 
@@ -302,7 +302,7 @@ bool spinCompare(Tet a, Tet b) {
 	b.rotY(1);
 	for (int i = 0; i < 4; ++i) {
 		b.rotX(1);
-		if (compareEncodings(Acode, b.encode()))
+		if (compareEncodings(Acode, b.encode(), Acode.size()))
 			return true;
 	}
 
@@ -311,7 +311,7 @@ bool spinCompare(Tet a, Tet b) {
 	b.rotX(1);
 	for (int i = 0; i < 4; ++i) {
 		b.rotY(1);
-		if (compareEncodings(Acode, b.encode()))
+		if (compareEncodings(Acode, b.encode(), Acode.size()))
 			return true;
 	}
 
@@ -337,8 +337,8 @@ std::vector<Tet> generate(unsigned int i) {
 			for (auto& u: unique) {
 				auto uCode = u.groupEncode();
 				//if there's a new group, keep true, check next u
-//				if (!compareGroupEncodings(uCode, buildCode))
-//					continue;
+				if (!compareGroupEncodings(uCode, buildCode, uCode.size()))
+					continue;
 
 				//if all groups match, spin
 				//if same at some rotation, set false, break
