@@ -3,4 +3,4 @@ project(tetris)
 
 set(CMAKE_CXX_STANDARD 23)
 
-add_executable(tetris main.cpp poly.h relative.h relative.cpp test.cpp test.h)
+add_executable(tetris main.cpp poly.h relative.h relative.cpp test.cpp test.h groupGenerators.h groups.cpp)

@@ -5,6 +5,19 @@
 #include <fstream>
 #include "relative.h"
 
+unsigned opposite[] {
+		5, 3, 4, 1, 2, 0
+};
+
+const Pos offsets[]{
+		{0,  1,  0},
+		{0,  0,  -1},
+		{1,  0,  0},
+		{0,  0,  1},
+		{-1, 0,  0},
+		{0,  -1, 0},
+};
+
 Tet::Tet(unsigned int n, const std::vector<Pos>& coordinates)
 		: n(n),
 		  pieces(6 * n),

@@ -6,22 +6,13 @@
 #define TETRIS_RELATIVE_H
 
 #include "poly.h"
-#include "groups.h"
 #include <vector>
 #include <set>
 
-int opposite[]{
-		5, 3, 4, 1, 2, 0
-};
-
-const Pos offsets[]{
-		{0,  1,  0},
-		{0,  0,  -1},
-		{1,  0,  0},
-		{0,  0,  1},
-		{-1, 0,  0},
-		{0,  -1, 0},
-};
+extern const unsigned selfGroupOf[64];
+extern const unsigned localGroupOf[1000000];
+extern unsigned opposite[6];
+extern const Pos offsets[6];
 
 struct Tet {
 
