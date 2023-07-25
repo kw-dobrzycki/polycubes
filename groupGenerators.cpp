@@ -4,7 +4,7 @@
 #include "groupGenerators.h"
 
 
-namespace SelfGenerator {
+namespace SelfGeneratorUI8 {
 
 	uint8_t X(uint8_t b, unsigned int i) {
 		std::bitset<6> bits(b);

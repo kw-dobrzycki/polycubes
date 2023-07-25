@@ -12,7 +12,7 @@
 #include "poly.h"
 #include "relative.h"
 
-namespace SelfGenerator {
+namespace SelfGeneratorUI8 {
 
 	inline uint8_t X(uint8_t b, unsigned i = 1);
 
