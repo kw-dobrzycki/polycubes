@@ -8,10 +8,9 @@
 #include "poly.h"
 #include <vector>
 #include <set>
-#include <map>
 
-extern const std::map<uint32_t, uint8_t> selfGroupOf;
-extern const std::map<uint32_t, uint16_t> localGroupOf;
+extern const unsigned selfGroupOf[64];
+extern const unsigned localGroupOf[1000000];
 extern unsigned opposite[6];
 extern const Pos offsets[6];
 

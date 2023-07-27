@@ -20,7 +20,7 @@ namespace SelfGeneratorUI8 {
 
 	inline uint8_t Z(uint8_t b, unsigned i = 1);
 
-	std::map<uint32_t, uint8_t> generateSelfGroups();
+	void generateSelfGroups();
 }
 
 namespace LocalGeneratorUI32 {
@@ -37,7 +37,7 @@ namespace LocalGeneratorUI32 {
 
 	inline type Z(type b, unsigned i = 1);
 
-	std::map<uint32_t, uint16_t> generateLocalGroups();
+	void generateLocalGroups();
 }
 
 #endif //TETRIS_GROUPGENERATORS_H
