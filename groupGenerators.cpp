@@ -42,15 +42,15 @@ namespace SelfGeneratorUI8 {
 		return bits.to_ulong();
 	}
 
-	void generateSelfGroups() {
+	std::map<uint32_t, uint8_t> generateSelfGroups() {
 		unsigned n = 1 << 6;
-		auto* groupOf = new unsigned[n](); //groups start at 1, write to file from 0
+		std::map<uint32_t, uint8_t> groupOf;
 
 		std::vector<std::vector<uint8_t>> groups;
 
 		for (int i = 0; i < n; ++i) {
 
-			if (groupOf[i])
+			if (groupOf.contains(i))
 				continue;
 
 			uint8_t k = i;
@@ -58,7 +58,7 @@ namespace SelfGeneratorUI8 {
 
 			for (int j = 0; j < 4; ++j) {
 				k = Y(k);
-				if (!groupOf[k]) {
+				if (!groupOf.contains(k)) {
 					group.push_back(k);
 					groupOf[k] = groups.size() - 1;
 				}
@@ -67,7 +67,7 @@ namespace SelfGeneratorUI8 {
 			k = X(k);
 			for (int j = 0; j < 4; ++j) {
 				k = Z(k);
-				if (!groupOf[k]) {
+				if (!groupOf.contains(k)) {
 					group.push_back(k);
 					groupOf[k] = groups.size() - 1;
 				}
@@ -76,7 +76,7 @@ namespace SelfGeneratorUI8 {
 			k = Y(k);
 			for (int j = 0; j < 4; ++j) {
 				k = X(k);
-				if (!groupOf[k]) {
+				if (!groupOf.contains(k)) {
 					group.push_back(k);
 					groupOf[k] = groups.size() - 1;
 				}
@@ -85,7 +85,7 @@ namespace SelfGeneratorUI8 {
 			k = Y(k);
 			for (int j = 0; j < 4; ++j) {
 				k = Z(k);
-				if (!groupOf[k]) {
+				if (!groupOf.contains(k)) {
 					group.push_back(k);
 					groupOf[k] = groups.size() - 1;
 				}
@@ -94,7 +94,7 @@ namespace SelfGeneratorUI8 {
 			k = Y(k);
 			for (int j = 0; j < 4; ++j) {
 				k = X(k);
-				if (!groupOf[k]) {
+				if (!groupOf.contains(k)) {
 					group.push_back(k);
 					groupOf[k] = groups.size() - 1;
 				}
@@ -104,23 +104,14 @@ namespace SelfGeneratorUI8 {
 			k = X(k);
 			for (int j = 0; j < 4; ++j) {
 				k = Y(k);
-				if (!groupOf[k]) {
+				if (!groupOf.contains(k)) {
 					group.push_back(k);
 					groupOf[k] = groups.size() - 1;
 				}
 			}
 		}
 
-		//save to file
-		std::ofstream file;
-		file.open("./selfGroupOf.h");
-		file << "const uint8_t selfGroupOf[] {\n";
-		for (int i = 0; i < n; ++i) {
-			file << groupOf[i] << ",\n";
-		}
-		file << "};";
-
-		delete[] groupOf;
+		return groupOf;
 	}
 
 }
@@ -213,15 +204,15 @@ namespace LocalGeneratorUI32 {
 		return b;
 	}
 
-	void generateLocalGroups() {
+	std::map<uint32_t, uint16_t> generateLocalGroups() {
 		unsigned n = 1000000;
-		auto* groupOf = new unsigned[n]();
+		std::map<uint32_t, uint16_t> groupOf;
 
 		std::vector<std::vector<type>> groups;
 
 		for (int i = 0; i < n; ++i) {
 
-			if (groupOf[i])
+			if (groupOf.contains(i))
 				continue;
 
 			type k = toBCD(i);
@@ -229,7 +220,7 @@ namespace LocalGeneratorUI32 {
 
 			for (int j = 0; j < 4; ++j) {
 				k = Y(k);
-				if (!groupOf[toDen(k)]) {
+				if (!groupOf.contains(toDen(k))) {
 					group.push_back(k);
 					groupOf[toDen(k)] = groups.size() - 1;
 				}
@@ -238,7 +229,7 @@ namespace LocalGeneratorUI32 {
 			k = X(k);
 			for (int j = 0; j < 4; ++j) {
 				k = Z(k);
-				if (!groupOf[toDen(k)]) {
+				if (!groupOf.contains(toDen(k))) {
 					group.push_back(k);
 					groupOf[toDen(k)] = groups.size() - 1;
 				}
@@ -247,7 +238,7 @@ namespace LocalGeneratorUI32 {
 			k = Y(k);
 			for (int j = 0; j < 4; ++j) {
 				k = X(k);
-				if (!groupOf[toDen(k)]) {
+				if (!groupOf.contains(toDen(k))) {
 					group.push_back(k);
 					groupOf[toDen(k)] = groups.size() - 1;
 				}
@@ -256,7 +247,7 @@ namespace LocalGeneratorUI32 {
 			k = Y(k);
 			for (int j = 0; j < 4; ++j) {
 				k = Z(k);
-				if (!groupOf[toDen(k)]) {
+				if (!groupOf.contains(toDen(k))) {
 					group.push_back(k);
 					groupOf[toDen(k)] = groups.size() - 1;
 				}
@@ -265,7 +256,7 @@ namespace LocalGeneratorUI32 {
 			k = Y(k);
 			for (int j = 0; j < 4; ++j) {
 				k = X(k);
-				if (!groupOf[toDen(k)]) {
+				if (!groupOf.contains(toDen(k))) {
 					group.push_back(k);
 					groupOf[toDen(k)] = groups.size() - 1;
 				}
@@ -275,22 +266,13 @@ namespace LocalGeneratorUI32 {
 			k = X(k);
 			for (int j = 0; j < 4; ++j) {
 				k = Y(k);
-				if (!groupOf[toDen(k)]) {
+				if (!groupOf.contains(toDen(k))) {
 					group.push_back(k);
 					groupOf[toDen(k)] = groups.size() - 1;
 				}
 			}
 		}
 
-		//save to file
-		std::ofstream file;
-		file.open("./localGroupOf.h");
-		file << "const uint32_t localGroupOf[] {\n";
-		for (int i = 0; i < n; ++i) {
-			file << groupOf[i] << ",\n";
-		}
-		file << "};";
-
-		delete[] groupOf;
+		return groupOf;
 	}
 }

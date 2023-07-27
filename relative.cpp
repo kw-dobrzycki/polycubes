@@ -4,6 +4,10 @@
 #include <iostream>
 #include <fstream>
 #include "relative.h"
+#include "groupGenerators.h"
+
+const std::map<uint32_t, uint8_t> selfGroupOf{SelfGeneratorUI8::generateSelfGroups()};
+const std::map<uint32_t, uint16_t> localGroupOf{LocalGeneratorUI32::generateLocalGroups()};
 
 unsigned opposite[] {
 		5, 3, 4, 1, 2, 0
@@ -49,7 +53,7 @@ Tet::Tet(unsigned int n, const std::vector<Pos>& coordinates)
 				for (int k = 0; k < 6; ++k) {
 					sum += (pieces[neighbourName * 6 + k] > 0) << (5 - k);
 				}
-				pieces[neighbour] = selfGroupOf[sum];
+				pieces[neighbour] = selfGroupOf.at(sum);
 			}
 		}
 	}
@@ -148,7 +152,7 @@ Tet Tet::insert(const Pos& block) const {
 	for (int i = 0; i < 6; ++i) {
 		int dirNeighbour = c_neighbours[n * 6 + i];
 		if (dirNeighbour) {
-			c_pieces[(dirNeighbour - 1) * 6 + opposite[i]] = selfGroupOf[selfType];
+			c_pieces[(dirNeighbour - 1) * 6 + opposite[i]] = selfGroupOf.at(selfType);
 
 			//compute new self type of the neighbour for indirect neighbours to update (this includes block)
 			int neighbourType = 0;
@@ -161,7 +165,7 @@ Tet Tet::insert(const Pos& block) const {
 			for (int j = 0; j < 6; ++j) {
 				int indirNeighbour = c_neighbours[(dirNeighbour - 1) * 6 + j];
 				if (indirNeighbour) {
-					c_pieces[(indirNeighbour - 1) * 6 + opposite[j]] = selfGroupOf[neighbourType];
+					c_pieces[(indirNeighbour - 1) * 6 + opposite[j]] = selfGroupOf.at(neighbourType);
 				}
 			}
 		}
@@ -180,7 +184,7 @@ std::vector<int> Tet::groupEncode() const {
 				pieces[i * 6 + 4] * 10 +
 				pieces[i * 6 + 5];
 
-		code[i] = localGroupOf[x];
+		code[i] = localGroupOf.at(x);
 	}
 	return code;
 }
