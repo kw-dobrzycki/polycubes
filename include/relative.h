@@ -72,5 +72,7 @@ std::vector<Tet> generate(unsigned int i);
 
 void write(const std::vector<Tet>& v);
 
+std::vector<Tet> read(std::string_view path);
+
 
 #endif //TETRIS_RELATIVE_H

@@ -3,8 +3,9 @@
 //
 #include <iostream>
 #include <fstream>
-#include "../include/relative.h"
-#include "../include/groups.h"
+#include <sstream>
+#include "relative.h"
+#include "groups.h"
 
 const unsigned* const selfGroupOf{SelfGroup::generateSelfGroups()};
 const unsigned* const localGroupOf{LocalGroup::generateLocalGroups()};
@@ -190,6 +191,10 @@ void Tet::print() const {
 	std::cout << std::endl;
 }
 
+bool Tet::operator==(const Tet& a) {
+	return false;
+}
+
 bool compareGroupEncodings(const std::vector<unsigned>& A, const std::vector<unsigned>& B) {
 	thread_local int* counters = new int[43450]();
 	thread_local unsigned* indices = new unsigned[50]();
@@ -353,7 +358,7 @@ std::vector<Tet> generate(unsigned int i) {
 void write(const std::vector<Tet>& v) {
 	std::cout << "saving " << v.size() << " results..." << std::endl;
 	std::ofstream file;
-	file.open("./blocks.txt");
+	file.open("../blocks.txt");
 	for (auto& t: v) {
 		for (auto& k: t.coords) {
 			file << k.x << " " << k.y << " " << k.z << std::endl;
@@ -361,4 +366,35 @@ void write(const std::vector<Tet>& v) {
 		file << std::endl;
 	}
 	file.close();
+}
+
+std::vector<std::string> split(const std::string& s, char delimiter) {
+	std::stringstream ss(s);
+	std::vector<std::string> elems;
+	std::string item;
+	while (std::getline(ss, item, delimiter)) {
+		elems.push_back(item);
+	}
+	return elems;
+}
+
+std::vector<Tet> read(const std::string_view path) {
+	std::ifstream file(std::string{path});
+	std::string line;
+
+	std::vector<Tet> tets;
+	std::vector<Pos> blocks;
+	std::cout << "reading" << std::endl;
+	while (std::getline(file, line, '\n')) {
+		if (line.empty()) {
+			tets.emplace_back(blocks.size(), blocks);
+			blocks.clear();
+			continue;
+		}
+		auto spaced = split(line, ' ');
+		blocks.push_back({std::stoi(spaced[0]), std::stoi(spaced[1]), std::stoi(spaced[2])});
+	}
+
+	std::cout << "read " << tets.size() << " shapes";
+	return tets;
 }
