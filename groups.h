@@ -2,8 +2,8 @@
 // Created by croissant on 24/07/2023.
 //
 
-#ifndef TETRIS_GROUPGENERATORS_H
-#define TETRIS_GROUPGENERATORS_H
+#ifndef TETRIS_GROUPS_H
+#define TETRIS_GROUPS_H
 
 #include <bitset>
 #include <vector>
@@ -12,7 +12,9 @@
 #include "poly.h"
 #include "relative.h"
 
-namespace SelfGeneratorUI8 {
+namespace SelfGroup {
+
+	using type = uint8_t;
 
 	inline uint8_t X(uint8_t b, unsigned i = 1);
 
@@ -23,7 +25,7 @@ namespace SelfGeneratorUI8 {
 	void generateSelfGroups();
 }
 
-namespace LocalGeneratorUI32 {
+namespace LocalGroup {
 
 	using type = uint32_t;
 
@@ -40,4 +42,4 @@ namespace LocalGeneratorUI32 {
 	void generateLocalGroups();
 }
 
-#endif //TETRIS_GROUPGENERATORS_H
+#endif //TETRIS_GROUPS_H
