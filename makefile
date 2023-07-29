@@ -1,14 +1,35 @@
 CC = g++
 TARGET = main
-FLAGS = -std=c++2a -O0
+TEST = test
+LIB = libpolycube.a
+CFLAGS = -I$(HDIR) -std=c++2a
 
-headers = groups.h relative.h poly.h test.h
-scripts = groups.cpp relative.cpp test.cpp
+# directories for library, this program is only main.
+SRCDIR = src
+HDIR = include
+OBJDIR = build
 
-.main: main.cpp
-	$(CC) -o $(TARGET) $< $(headers) $(scripts) $(FLAGS)
+SRC := $(wildcard $(SRCDIR)/*.cpp)
+OBJ := $(patsubst $(SRCDIR)/%.cpp, $(OBJDIR)/%.o, $(SRC))
+HEADERS := $(wildcard $(HDIR)/*.h) $(wildcard $(SRCDIR)/*.h)
 
-all: .main
+.PHONY: all test library clean
+
+all: main.cpp library
+	$(CC) -o $(TARGET) $< -L. -lpolycube $(CFLAGS)
+
+library: $(OBJ)
+	ar rcs -o $(LIB) $(OBJ)
+
+$(OBJDIR)/%.o: $(SRCDIR)/%.cpp $(HEADERS) build
+	$(CC) -c -o $@ $< $(CFLAGS)
+
+test: tests/test.cpp library
+	$(CC) -o $@ $< -L. -l$(LIB) $(CFLAGS)
+	./$@
 
 clean:
-	rm main
+	rm -rf $(TARGET) $(TEST) $(OBJDIR) $(LIB)
+
+build:
+	mkdir $(OBJDIR)

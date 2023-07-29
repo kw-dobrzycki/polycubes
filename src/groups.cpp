@@ -1,7 +1,7 @@
 //
 // Created by croissant on 25/07/2023.
 //
-#include "groups.h"
+#include "../include/groups.h"
 
 
 namespace SelfGroup {

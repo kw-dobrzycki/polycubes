@@ -1,6 +1,6 @@
 #include <iostream>
-#include "relative.h"
-#include "groups.h"
+#include "include/relative.h"
+#include "include/groups.h"
 
 int main() {
 

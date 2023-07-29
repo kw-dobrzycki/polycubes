@@ -3,8 +3,8 @@
 //
 #include <iostream>
 #include <fstream>
-#include "relative.h"
-#include "groups.h"
+#include "../include/relative.h"
+#include "../include/groups.h"
 
 const unsigned* const selfGroupOf{SelfGroup::generateSelfGroups()};
 const unsigned* const localGroupOf{LocalGroup::generateLocalGroups()};
