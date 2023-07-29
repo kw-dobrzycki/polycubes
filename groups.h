@@ -16,13 +16,13 @@ namespace SelfGroup {
 
 	using type = uint8_t;
 
-	inline uint8_t X(uint8_t b, unsigned i = 1);
+	uint8_t X(uint8_t b, unsigned i = 1);
 
-	inline uint8_t Y(uint8_t b, unsigned i = 1);
+	uint8_t Y(uint8_t b, unsigned i = 1);
 
-	inline uint8_t Z(uint8_t b, unsigned i = 1);
+	uint8_t Z(uint8_t b, unsigned i = 1);
 
-	void generateSelfGroups();
+	unsigned* generateSelfGroups();
 }
 
 namespace LocalGroup {
@@ -33,13 +33,13 @@ namespace LocalGroup {
 
 	type toBCD(unsigned d);
 
-	inline type X(type b, unsigned i = 1);
+	type X(type b, unsigned i = 1);
 
-	inline type Y(type b, unsigned i = 1);
+	type Y(type b, unsigned i = 1);
 
-	inline type Z(type b, unsigned i = 1);
+	type Z(type b, unsigned i = 1);
 
-	void generateLocalGroups();
+	unsigned* generateLocalGroups();
 }
 
 #endif //TETRIS_GROUPS_H

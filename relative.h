@@ -9,8 +9,8 @@
 #include <vector>
 #include <set>
 
-extern const unsigned selfGroupOf[64];
-extern const unsigned localGroupOf[1000000];
+extern const unsigned* const selfGroupOf;
+extern const unsigned* const localGroupOf;
 extern unsigned opposite[6];
 extern const Pos offsets[6];
 
@@ -18,10 +18,7 @@ struct Tet {
 
 	unsigned int n;
 
-	/**
-	 * Connectivity encodings of each block - 6 ints per block
-	 */
-	std::vector<int> pieces;
+	std::vector<uint32_t> pieces;
 
 	/**
 	 * Coordinates of each block. THIS FIELD IS NOT MAINTAINED FOR EXTENDED FUNCTIONALITY.
@@ -35,43 +32,38 @@ struct Tet {
 	/**
 	 * DO NOT USE THIS FOR EXPERIMENTATION
 	 */
-	Tet(unsigned int n, const std::vector<int>& pieces, const std::vector<Pos>& coords,
+	Tet(unsigned int n, const std::vector<uint32_t>& pieces, const std::vector<Pos>& coords,
 		const std::vector<int>& neighbours);
 
 	/**
 	 * THIS FUNCTION DOES NOT UPDATE COORDINATES.
 	 */
-	Tet& rot(unsigned int i, const int* shift);
+	Tet& rotX();
 
 	/**
 	 * THIS FUNCTION DOES NOT UPDATE COORDINATES.
 	 */
-	Tet& rotX(unsigned int i);
+	Tet& rotY();
 
 	/**
 	 * THIS FUNCTION DOES NOT UPDATE COORDINATES.
 	 */
-	Tet& rotY(unsigned int i);
-
-	/**
-	 * THIS FUNCTION DOES NOT UPDATE COORDINATES.
-	 */
-	Tet& rotZ(unsigned int i);
+	Tet& rotZ();
 
 	std::vector<Pos> getFreeSpaces() const;
 
 	Tet insert(const Pos& block) const;
 
-	std::vector<int> groupEncode() const;
+	std::vector<unsigned> groupEncode() const;
 
-	std::vector<int> encode() const;
+	std::vector<unsigned> encode() const;
 
 	void print() const;
 };
 
-inline bool compareGroupEncodings(const std::vector<int>& A, const std::vector<int>& B);
+inline bool compareGroupEncodings(const std::vector<unsigned>& A, const std::vector<unsigned>& B);
 
-inline bool compareEncodings(const std::vector<int>& A, const std::vector<int>& B);
+inline bool compareEncodings(const std::vector<unsigned>& A, const std::vector<unsigned>& B);
 
 
 bool spinCompare(Tet a, Tet b);

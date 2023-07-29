@@ -42,7 +42,7 @@ namespace SelfGroup {
 		return bits.to_ulong();
 	}
 
-	void generateSelfGroups() {
+	unsigned* generateSelfGroups() {
 		unsigned n = 1 << 6;
 		auto* groupOf = new unsigned[n](); //groups start at 1, write to file from 0
 
@@ -111,16 +111,7 @@ namespace SelfGroup {
 			}
 		}
 
-		//save to file
-		std::ofstream file;
-		file.open("./selfGroupOf.h");
-		file << "const uint8_t selfGroupOf[] {\n";
-		for (int i = 0; i < n; ++i) {
-			file << groupOf[i] << ",\n";
-		}
-		file << "};";
-
-		delete[] groupOf;
+		return groupOf;
 	}
 
 }
@@ -186,8 +177,8 @@ namespace LocalGroup {
 			type m4 = 0xF0000;
 			type m3 = 0xF000;
 
-			type a2 = (b & m3) >> 1 * 4;
 			type a1 = (b & m2) >> 1 * 4;
+			type a2 = (b & m3) >> 1 * 4;
 			type a3 = (b & m4) >> 1 * 4;
 			type a4 = (b & m1) << 3 * 4;
 
@@ -213,7 +204,7 @@ namespace LocalGroup {
 		return b;
 	}
 
-	void generateLocalGroups() {
+	unsigned* generateLocalGroups() {
 		unsigned n = 1000000;
 		auto* groupOf = new unsigned[n]();
 
@@ -282,15 +273,6 @@ namespace LocalGroup {
 			}
 		}
 
-		//save to file
-		std::ofstream file;
-		file.open("./localGroupOf.h");
-		file << "const uint32_t localGroupOf[] {\n";
-		for (int i = 0; i < n; ++i) {
-			file << groupOf[i] << ",\n";
-		}
-		file << "};";
-
-		delete[] groupOf;
+		return groupOf;
 	}
 }

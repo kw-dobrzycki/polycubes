@@ -5,6 +5,8 @@
 #ifndef TETRIS_POLY_H
 #define TETRIS_POLY_H
 
+#include <cstdint>
+
 struct Pos {
 	int x, y, z;
 
