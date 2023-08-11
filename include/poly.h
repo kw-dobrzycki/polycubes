@@ -14,6 +14,10 @@ struct Pos {
 		return {x + v.x, y + v.y, z + v.z};
 	}
 
+	Pos operator-(const Pos& v) const {
+		return {x - v.x, y - v.y, z - v.z};
+	}
+
 	Pos& operator+=(const Pos& v) {
 		x += v.x;
 		y += v.y;
@@ -25,7 +29,6 @@ struct Pos {
 		return x == v.x && y == v.y && z == v.z;
 	}
 };
-
 
 
 #endif //TETRIS_POLY_H

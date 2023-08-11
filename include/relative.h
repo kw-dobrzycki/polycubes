@@ -35,19 +35,10 @@ struct Tet {
 	Tet(unsigned int n, const std::vector<uint32_t>& pieces, const std::vector<Pos>& coords,
 		const std::vector<int>& neighbours);
 
-	/**
-	 * THIS FUNCTION DOES NOT UPDATE COORDINATES.
-	 */
 	Tet& rotX();
 
-	/**
-	 * THIS FUNCTION DOES NOT UPDATE COORDINATES.
-	 */
 	Tet& rotY();
 
-	/**
-	 * THIS FUNCTION DOES NOT UPDATE COORDINATES.
-	 */
 	Tet& rotZ();
 
 	std::vector<Pos> getFreeSpaces() const;
@@ -61,12 +52,15 @@ struct Tet {
 	void print() const;
 };
 
-inline bool compareGroupEncodings(const std::vector<unsigned>& A, const std::vector<unsigned>& B);
+bool compareLocalEncodings(const std::vector<unsigned>& A, const std::vector<unsigned>& B);
 
-inline bool compareEncodings(const std::vector<unsigned>& A, const std::vector<unsigned>& B);
+/**
+ * @return translational and rotational equivalence
+ */
+bool fullCompare(const Tet& A, const Tet& B);
 
-
-bool spinCompare(Tet a, Tet b);
+std::pair<std::vector<unsigned int>, std::vector<unsigned int>>
+getRareSeeds(const std::vector<unsigned int>& A, const std::vector<unsigned int>& B);
 
 std::vector<Tet> generate(unsigned int i);
 

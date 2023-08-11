@@ -69,21 +69,51 @@ Tet::Tet(unsigned int n, const std::vector<uint32_t>& pieces, const std::vector<
 
 Tet& Tet::rotX() {
 	for (int j = 0; j < n; ++j) {
-		pieces[j] = LocalGroup::X(pieces[j]);
+		auto z = coords[j].z;
+		auto y = coords[j].y;
+		auto m = (z * y < 0) - (z * y > 0);
+
+		if (m) {
+			coords[j].z *= m;
+			coords[j].y *= -m;
+		} else {
+			coords[j].z = y * ((y == 0) - 1);
+			coords[j].y = z;
+		}
 	}
 	return *this;
 }
 
 Tet& Tet::rotY() {
 	for (int j = 0; j < n; ++j) {
-		pieces[j] = LocalGroup::Y(pieces[j]);
+		auto x = coords[j].x;
+		auto z = coords[j].z;
+		auto m = (x * z < 0) - (x * z > 0);
+
+		if (m) {
+			coords[j].x *= m;
+			coords[j].z *= -m;
+		} else {
+			coords[j].x = z * ((z == 0) - 1);
+			coords[j].z = x;
+		}
 	}
 	return *this;
 }
 
 Tet& Tet::rotZ() {
 	for (int j = 0; j < n; ++j) {
-		pieces[j] = LocalGroup::Z(pieces[j]);
+		auto x = coords[j].x;
+		auto y = coords[j].y;
+		auto m = (x * y < 0) - (x * y > 0);
+
+		if (m) {
+			coords[j].y *= m;
+			coords[j].x *= -m;
+		} else {
+			coords[j].y = x * ((x == 0) - 1);
+			coords[j].x = y;
+		}
 	}
 	return *this;
 }
@@ -191,11 +221,161 @@ void Tet::print() const {
 	std::cout << std::endl;
 }
 
-bool Tet::operator==(const Tet& a) {
+unsigned toLinear(const Pos& p) {
+	unsigned b = 0;
+	b = (b & ~0x3F000) | (p.x & 0x3F) << 12;
+	b = (b & ~0xFC0) | (p.y & 0x3F) << 6;
+	b = (b & ~0x3F) | (p.z & 0x3F);
+	return b;
+}
+
+void toLinearVector(const Tet& t, std::vector<unsigned>& dst){
+	for (int i = 0; i < t.n; ++i) {
+		dst[i] = toLinear(t.coords[i]);
+	}
+}
+
+bool compareLinearCoordinates(const std::vector<unsigned>& A, const std::vector<unsigned>& B) {
+	thread_local int* counters = new int[265000]();
+	thread_local unsigned* indices = new unsigned[50]();
+	int items = 0;
+
+	for (int i = 0; i < A.size(); ++i) {
+		counters[A[i]]++;
+		counters[B[i]]--;
+		indices[items++] = A[i];
+		indices[items++] = B[i];
+	}
+
+	bool equal = true;
+	int tail = 0;
+	for (int i = 0; i < items; ++i) {
+		if (counters[indices[i]] != 0) {
+			equal = false;
+			tail = i;
+			break;
+		}
+
+		//counter is 0 but index is not, clean up index
+		indices[i] = 0;
+	}
+
+	//clean up the rest
+	for (int i = tail; i < items; ++i) {
+		counters[indices[i]] = 0;
+		indices[i] = 0;
+	}
+
+	return equal;
+}
+
+bool fullCompare(const Tet& A, const Tet& B) {
+	/* translation equivalence: relative coordinates occupy the same space
+	 * 1) Find shared piece types which occur least commonly (seeds)
+	 * 2) Set a on a seed. Set b on every seed, each time:
+	 * 3) Rotate b, recalculate linear coordinates and compare
+	 */
+
+	auto minSeeds = getRareSeeds(A.groupEncode(), B.groupEncode());
+
+	if (minSeeds.first.empty())
+		return false;
+
+	std::vector<unsigned> reference(A.n);
+	Tet comparator = A;
+	std::vector<unsigned> seeds = minSeeds.first;
+
+	if (minSeeds.first.size() < minSeeds.second.size()) {
+		//rebase B
+		auto seed = B.coords[minSeeds.second[0]];
+		for (int i = 0; i < B.n; ++i) {
+			reference[i] = toLinear(B.coords[i] - seed);
+		}
+
+	} else {
+		//rebase A
+		auto seed = A.coords[minSeeds.first[0]];
+		for (int i = 0; i < A.n; ++i) {
+			reference[i] = toLinear(A.coords[i] - seed);
+		}
+		comparator = B;
+		seeds = minSeeds.second;
+	}
+
+	std::vector<unsigned> rotated(comparator.n);
+
+	for (int i = 0; i < seeds.size(); ++i) {
+		auto seed = comparator.coords[seeds[i]];
+
+		//rebase comparator
+		for (int j = 0; j < comparator.n; ++j) {
+			comparator.coords[j] = comparator.coords[j] - seed;
+		}
+
+		//rotate, linearise and compare
+		//spin on top
+		for (int j = 0; j < 4; ++j) {
+			comparator.rotY();
+			toLinearVector(comparator, rotated);
+			if (compareLinearCoordinates(reference, rotated))
+				return true;
+		}
+
+		//spin on back
+		comparator.rotX();
+		for (int j = 0; j < 4; ++j) {
+			comparator.rotZ();
+			toLinearVector(comparator, rotated);
+			if (compareLinearCoordinates(reference, rotated))
+				return true;
+		}
+
+		//spin on right
+		comparator.rotY();
+		for (int j = 0; j < 4; ++j) {
+			comparator.rotX();
+			toLinearVector(comparator, rotated);
+			if (compareLinearCoordinates(reference, rotated))
+				return true;
+		}
+
+		//spin on front
+		comparator.rotY();
+		for (int j = 0; j < 4; ++j) {
+			comparator.rotZ();
+			toLinearVector(comparator, rotated);
+			if (compareLinearCoordinates(reference, rotated))
+				return true;
+		}
+
+		//spin on left
+		comparator.rotY();
+		for (int j = 0; j < 4; ++j) {
+			comparator.rotX();
+			toLinearVector(comparator, rotated);
+			if (compareLinearCoordinates(reference, rotated))
+				return true;
+		}
+
+		//spin on bottom
+		comparator.rotY();
+		comparator.rotX();
+		for (int j = 0; j < 4; ++j) {
+			comparator.rotY();
+			toLinearVector(comparator, rotated);
+			if (compareLinearCoordinates(reference, rotated))
+				return true;
+		}
+
+		//compare coordinates
+		if (compareLinearCoordinates(reference, rotated))
+			return true;
+	}
+
 	return false;
 }
 
-bool compareGroupEncodings(const std::vector<unsigned>& A, const std::vector<unsigned>& B) {
+bool compareLocalEncodings(const std::vector<unsigned>& A, const std::vector<unsigned>& B) {
 	thread_local int* counters = new int[43450]();
 	thread_local unsigned* indices = new unsigned[50]();
 	int items = 0;
@@ -229,91 +409,63 @@ bool compareGroupEncodings(const std::vector<unsigned>& A, const std::vector<uns
 	return equal;
 }
 
-bool compareEncodings(const std::vector<unsigned>& A, const std::vector<unsigned>& B) {
-	thread_local int* counters = new int[1000000]();
+std::pair<std::vector<unsigned int>, std::vector<unsigned int>>
+getRareSeeds(const std::vector<unsigned int>& A, const std::vector<unsigned int>& B) {
+	thread_local int* countA = new int[43451]();
+	thread_local int* countB = new int[43451]();
 	thread_local unsigned* indices = new unsigned[50]();
 	int items = 0;
 
 	for (int i = 0; i < A.size(); ++i) {
-		counters[A[i]]++;
-		counters[B[i]]--;
+		countA[A[i]]++;
+		countB[B[i]]++;
 		indices[items++] = A[i];
 		indices[items++] = B[i];
 	}
 
-	bool equal = true;
-	int tail = 0;
+	countA[43450] = A.size() + 1;
+	countB[43450] = A.size() + 1;
+
+	unsigned min = 43450;
 	for (int i = 0; i < items; ++i) {
-		if (counters[indices[i]] != 0) {
-			equal = false;
-			tail = i;
-			break;
+
+		//get argmin
+		if (countA[indices[i]] * countB[indices[i]]) { //if in both
+			auto a = std::min(countA[indices[i]], countB[indices[i]]);
+			auto b = std::min(countA[min], countB[min]);
+			if (a < b) {
+				min = indices[i];
+			}
 		}
 
-		//counter is 0 but index is not, clean up index
+		//and if it's the lowest possible, break
+		if (countA[min] == 1 || countB[min] == 1) {
+			break;
+		}
+	}
+
+	//clean up
+	for (int i = 0; i < items; ++i) {
+		countA[indices[i]] = 0;
+		countB[indices[i]] = 0;
 		indices[i] = 0;
 	}
 
-	//clean up the rest
-	for (int i = tail; i < items; ++i) {
-		counters[indices[i]] = 0;
-		indices[i] = 0;
+	std::vector<unsigned> a;
+	std::vector<unsigned> b;
+
+	for (int i = 0; i < A.size(); ++i) {
+		//if element in A belongs to the rarest group
+		if (A[i] == min) {
+			a.push_back(i);
+		}
+
+		if (B[i] == min) {
+			b.push_back(i);
+		}
 	}
 
-	return equal;
-}
-
-bool spinCompare(Tet a, Tet b) {
-	auto Acode = a.encode();
-	//spin on top
-	for (int i = 0; i < 4; ++i) {
-		b.rotY();
-		if (compareEncodings(Acode, b.encode()))
-			return true;
-	}
-
-	//spin on back
-	b.rotX();
-	for (int i = 0; i < 4; ++i) {
-		b.rotZ();
-		if (compareEncodings(Acode, b.encode()))
-			return true;
-	}
-
-	//spin on right
-	b.rotY();
-	for (int i = 0; i < 4; ++i) {
-		b.rotX();
-		if (compareEncodings(Acode, b.encode()))
-			return true;
-	}
-
-	//spin on front
-	b.rotY();
-	for (int i = 0; i < 4; ++i) {
-		b.rotZ();
-		if (compareEncodings(Acode, b.encode()))
-			return true;
-	}
-
-	//spin on left
-	b.rotY();
-	for (int i = 0; i < 4; ++i) {
-		b.rotX();
-		if (compareEncodings(Acode, b.encode()))
-			return true;
-	}
-
-	//spin on bottom
-	b.rotY();
-	b.rotX();
-	for (int i = 0; i < 4; ++i) {
-		b.rotY();
-		if (compareEncodings(Acode, b.encode()))
-			return true;
-	}
-
-	return false;
+	return {a, b};
 }
 
 std::vector<Tet> generate(unsigned int i) {
@@ -335,12 +487,12 @@ std::vector<Tet> generate(unsigned int i) {
 			for (auto& u: unique) {
 				auto uCode = u.groupEncode();
 				//if there's a new group, keep true, check next u
-				if (!compareGroupEncodings(uCode, buildCode))
+				if (!compareLocalEncodings(uCode, buildCode))
 					continue;
 
 				//if all groups match, spin
 				//if same at some rotation, set false, break
-				if (spinCompare(u, build)) {
+				if (fullCompare(u, build)) {
 					newShape = false;
 					break;
 				}
