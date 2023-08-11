@@ -11,6 +11,9 @@
 
 extern const unsigned* const selfGroupOf;
 extern const unsigned* const localGroupOf;
+
+unsigned getLocalGroupOf(uint32_t piece);
+
 extern unsigned opposite[6];
 extern const Pos offsets[6];
 
@@ -45,7 +48,7 @@ struct Tet {
 
 	Tet insert(const Pos& block) const;
 
-	std::vector<unsigned> groupEncode() const;
+	std::vector<unsigned> encodeLocal() const;
 
 	std::vector<unsigned> encode() const;
 
