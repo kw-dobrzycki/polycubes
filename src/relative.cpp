@@ -171,10 +171,10 @@ Tet Tet::insert(const Pos& block) const {
 	return Tet{n + 1, c_pieces, c_coords, c_neighbours};
 }
 
-std::vector<unsigned> Tet::encodeLocal() const {
+std::vector<unsigned> Tet::groupEncode() const {
 	std::vector<unsigned> code(n);
 	for (int i = 0; i < n; ++i) {
-		code[i] = getLocalGroupOf(pieces[i]);
+		code[i] = localGroupOf[LocalGroup::toDen(pieces[i])];
 	}
 	return code;
 }
@@ -195,48 +195,6 @@ void Tet::print() const {
 		std::cout << "|";
 	}
 	std::cout << std::endl;
-}
-
-LocalGroup::type getLocalGroupOf(LocalGroup::type piece) {
-	auto min = piece;
-
-	for (int j = 0; j < 4; ++j) {
-		piece = LocalGroup::Y(piece);
-		min = std::min(min, piece);
-	}
-
-	piece = LocalGroup::X(piece);
-	for (int j = 0; j < 4; ++j) {
-		piece = LocalGroup::Z(piece);
-		min = std::min(min, piece);
-	}
-
-	piece = LocalGroup::Y(piece);
-	for (int j = 0; j < 4; ++j) {
-		piece = LocalGroup::X(piece);
-		min = std::min(min, piece);
-	}
-
-	piece = LocalGroup::Y(piece);
-	for (int j = 0; j < 4; ++j) {
-		piece = LocalGroup::Z(piece);
-		min = std::min(min, piece);
-	}
-
-	piece = LocalGroup::Y(piece);
-	for (int j = 0; j < 4; ++j) {
-		piece = LocalGroup::X(piece);
-		min = std::min(min, piece);
-	}
-
-	piece = LocalGroup::Y(piece);
-	piece = LocalGroup::X(piece);
-	for (int j = 0; j < 4; ++j) {
-		piece = LocalGroup::Y(piece);
-		min = std::min(min, piece);
-	}
-	
-	return LocalGroup::toDen(min);
 }
 
 unsigned toLinear(const Pos& p) {
@@ -294,7 +252,7 @@ bool fullCompare(const Tet& A, const Tet& B) {
 	 * 3) Rotate b, recalculate linear coordinates and compare
 	 */
 
-	auto minSeeds = getRareSeeds(A.encodeLocal(), B.encodeLocal());
+	auto minSeeds = getRareSeeds(A.groupEncode(), B.groupEncode());
 
 	if (minSeeds.first.empty())
 		return false;
@@ -393,7 +351,7 @@ bool fullCompare(const Tet& A, const Tet& B) {
 }
 
 bool compareLocalEncodings(const std::vector<unsigned>& A, const std::vector<unsigned>& B) {
-	thread_local int* counters = new int[1000000]();
+	thread_local int* counters = new int[43450]();
 	thread_local unsigned* indices = new unsigned[50]();
 	int items = 0;
 
@@ -428,8 +386,8 @@ bool compareLocalEncodings(const std::vector<unsigned>& A, const std::vector<uns
 
 std::pair<std::vector<unsigned int>, std::vector<unsigned int>>
 getRareSeeds(const std::vector<unsigned int>& A, const std::vector<unsigned int>& B) {
-	thread_local int* countA = new int[1000001]();
-	thread_local int* countB = new int[1000001]();
+	thread_local int* countA = new int[43451]();
+	thread_local int* countB = new int[43451]();
 	thread_local unsigned* indices = new unsigned[50]();
 	int items = 0;
 
@@ -440,10 +398,10 @@ getRareSeeds(const std::vector<unsigned int>& A, const std::vector<unsigned int>
 		indices[items++] = B[i];
 	}
 
-	countA[1000000] = A.size() + 1;
-	countB[1000000] = A.size() + 1;
+	countA[43450] = A.size() + 1;
+	countB[43450] = A.size() + 1;
 
-	unsigned min = 1000000;
+	unsigned min = 43450;
 	for (int i = 0; i < items; ++i) {
 
 		//get argmin
@@ -498,11 +456,11 @@ std::vector<Tet> generate(unsigned int i) {
 
 		for (auto& f: faces) {
 			Tet build(p.insert(f));
-			auto buildCode = build.encodeLocal();
+			auto buildCode = build.groupEncode();
 			bool newShape = true;
 
 			for (auto& u: unique) {
-				auto uCode = u.encodeLocal();
+				auto uCode = u.groupEncode();
 				//if there's a new group, keep true, check next u
 				if (!compareLocalEncodings(uCode, buildCode))
 					continue;
