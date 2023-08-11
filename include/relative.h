@@ -45,7 +45,7 @@ struct Tet {
 
 	Tet insert(const Pos& block) const;
 
-	std::vector<unsigned> groupEncode() const;
+	std::vector<unsigned> encodeLocal() const;
 
 	std::vector<unsigned> encode() const;
 

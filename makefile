@@ -2,7 +2,7 @@ CC = g++
 TARGET = main
 TEST = test
 LIB = libpolycube.a
-CFLAGS = -I$(HDIR) -std=c++2a
+CFLAGS = -I$(HDIR) -std=c++2a -O3
 
 # directories for library, this program is only main.
 SRCDIR = src
