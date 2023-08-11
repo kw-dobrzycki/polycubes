@@ -69,51 +69,27 @@ Tet::Tet(unsigned int n, const std::vector<uint32_t>& pieces, const std::vector<
 
 Tet& Tet::rotX() {
 	for (int j = 0; j < n; ++j) {
-		auto z = coords[j].z;
-		auto y = coords[j].y;
-		auto m = (z * y < 0) - (z * y > 0);
-
-		if (m) {
-			coords[j].z *= m;
-			coords[j].y *= -m;
-		} else {
-			coords[j].z = y * ((y == 0) - 1);
-			coords[j].y = z;
-		}
+		auto t = coords[j].z;
+		coords[j].z = -coords[j].y;
+		coords[j].y = t;
 	}
 	return *this;
 }
 
 Tet& Tet::rotY() {
 	for (int j = 0; j < n; ++j) {
-		auto x = coords[j].x;
-		auto z = coords[j].z;
-		auto m = (x * z < 0) - (x * z > 0);
-
-		if (m) {
-			coords[j].x *= m;
-			coords[j].z *= -m;
-		} else {
-			coords[j].x = z * ((z == 0) - 1);
-			coords[j].z = x;
-		}
+		auto t = coords[j].x;
+		coords[j].x = -coords[j].z;
+		coords[j].z = t;
 	}
 	return *this;
 }
 
 Tet& Tet::rotZ() {
 	for (int j = 0; j < n; ++j) {
-		auto x = coords[j].x;
-		auto y = coords[j].y;
-		auto m = (x * y < 0) - (x * y > 0);
-
-		if (m) {
-			coords[j].y *= m;
-			coords[j].x *= -m;
-		} else {
-			coords[j].y = x * ((x == 0) - 1);
-			coords[j].x = y;
-		}
+		auto t = coords[j].y;
+		coords[j].y = -coords[j].x;
+		coords[j].x = t;
 	}
 	return *this;
 }
@@ -229,7 +205,7 @@ unsigned toLinear(const Pos& p) {
 	return b;
 }
 
-void toLinearVector(const Tet& t, std::vector<unsigned>& dst){
+void toLinearVector(const Tet& t, std::vector<unsigned>& dst) {
 	for (int i = 0; i < t.n; ++i) {
 		dst[i] = toLinear(t.coords[i]);
 	}
@@ -282,24 +258,27 @@ bool fullCompare(const Tet& A, const Tet& B) {
 		return false;
 
 	std::vector<unsigned> reference(A.n);
-	Tet comparator = A;
-	std::vector<unsigned> seeds = minSeeds.first;
+	Tet relative = A;
+	Tet comparator = B;
+	std::vector<unsigned> seeds = minSeeds.second;
 
-	if (minSeeds.first.size() < minSeeds.second.size()) {
-		//rebase B
+	if (minSeeds.first.size() <= minSeeds.second.size()) {
+		//rebase B (as reference)
 		auto seed = B.coords[minSeeds.second[0]];
 		for (int i = 0; i < B.n; ++i) {
 			reference[i] = toLinear(B.coords[i] - seed);
+			relative.coords[i] = B.coords[i] - seed;
 		}
+		comparator = A;
+		seeds = minSeeds.first;
 
 	} else {
-		//rebase A
+		//rebase A (as reference)
 		auto seed = A.coords[minSeeds.first[0]];
 		for (int i = 0; i < A.n; ++i) {
 			reference[i] = toLinear(A.coords[i] - seed);
+			relative.coords[i] = A.coords[i] - seed;
 		}
-		comparator = B;
-		seeds = minSeeds.second;
 	}
 
 	std::vector<unsigned> rotated(comparator.n);
@@ -366,10 +345,6 @@ bool fullCompare(const Tet& A, const Tet& B) {
 			if (compareLinearCoordinates(reference, rotated))
 				return true;
 		}
-
-		//compare coordinates
-		if (compareLinearCoordinates(reference, rotated))
-			return true;
 	}
 
 	return false;
