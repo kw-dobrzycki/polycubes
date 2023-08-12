@@ -525,102 +525,21 @@ bool compareBounds(const Tet& a, const Tet& b) {
 	return true;
 }
 
-std::vector<Tet> generateCompl(unsigned int i) {
-	if (i <= 1) {
-		return std::vector{Tet(i, std::vector<Pos>(1, {0, 0, 0}))};
-	}
-
-	auto previous = generateCompl(i - 1);
-	std::vector<Tet> unique;
-	std::vector<std::vector<LocalGroup::type>> uniqueCode;
-	std::vector<std::vector<LocalGroup::type>> uniqueComplementCode;
-
-	int skipped = 0;
-	int prev = 0;
-	int k = 0;
-	for (auto& p: previous) {
-		if (!(++k % 100)) {
-			std::cout << "n = " << i << ": " << (float) k / previous.size() << " with " << unique.size() - prev
-					  << " new unique shapes\n";
-			prev = unique.size();
-		}
-
-		auto faces = p.getFreeSpaces();
-
-		for (auto& f: faces) {
-			Tet build(p.insert(f));
-			auto buildCode = build.encodeLocal();
-
-			Tet buildComplement = build.getComplement();
-			auto buildComplementCode = buildComplement.encodeLocal();
-
-			bool newShape = true;
-
-			int isLocalEqual = false;
-			int z = -1;
-
-			for (int j = 0; j < unique.size(); ++j) {
-				const auto& u = unique[j];
-				const auto& uCode = uniqueCode[j];
-				const auto& uComplementCode = uniqueComplementCode[j];
-
-				z++;
-
-				//if there's a new group, keep true, check next u
-				if (!compareLocalEncodings(uCode, buildCode)) {
-					skipped++;
-					continue;
-				}
-
-				isLocalEqual = z;
-
-				//check bounding box sizes
-				if (!compareBounds(u, build)) {
-					skipped++;
-					continue;
-				}
-
-				//do the same for the complements
-				if (!compareLocalEncodings(uComplementCode, buildComplementCode)) {
-					skipped++;
-					continue;
-				}
-
-				//if all groups match, spin
-				//if same at some rotation, set false, break
-				if (fullCompare(u, build)) {
-					newShape = false;
-					break;
-				}
-			}
-
-			if (newShape) {
-				unique.push_back(build);
-				uniqueCode.push_back(buildCode);
-				uniqueComplementCode.push_back(buildComplementCode);
-				z++;
-			}
-		}
-	}
-
-	std::cout << "n = " << i << " full comparisons skipped: " << skipped << std::endl;
-	std::cout << "n = " << i << ": " << unique.size() << " unique shapes\n" << std::endl;
-
-	return unique;
-
-}
-
 std::vector<Tet> generate(unsigned int i) {
 	if (i <= 1) {
 		return std::vector{Tet(i, std::vector<Pos>(1, {0, 0, 0}))};
 	}
 
-	auto previous = generateCompl(i - 1);
+	auto previous = generate(i - 1);
 	std::vector<Tet> unique;
 	std::vector<std::vector<LocalGroup::type>> uniqueCode;
 	std::vector<std::vector<LocalGroup::type>> uniqueComplementCode;
 
 	int skipped = 0;
+	int localSkip = 0;
+	int inverseSkip = 0;
+	int boundsSkip = 0;
+
 	int prev = 0;
 	int k = 0;
 	for (auto& p: previous) {
@@ -654,6 +573,7 @@ std::vector<Tet> generate(unsigned int i) {
 				//if there's a new group, keep true, check next u
 				if (!compareLocalEncodings(uCode, buildCode)) {
 					skipped++;
+					localSkip++;
 					continue;
 				}
 
@@ -662,6 +582,13 @@ std::vector<Tet> generate(unsigned int i) {
 				//check bounding box sizes
 				if (!compareBounds(u, build)) {
 					skipped++;
+					boundsSkip++;
+					continue;
+				}
+
+				if (uComplementCode.size() == buildComplementCode.size() && !compareLocalEncodings(uComplementCode, buildComplementCode)) {
+					skipped++;
+					inverseSkip++;
 					continue;
 				}
 
@@ -671,11 +598,7 @@ std::vector<Tet> generate(unsigned int i) {
 					newShape = false;
 					break;
 				}
-				if (!compareLocalEncodings(uComplementCode, buildComplementCode)) {
-					auto x = 0;
-				}
 			}
-
 
 			if (newShape) {
 				unique.push_back(build);
@@ -686,8 +609,14 @@ std::vector<Tet> generate(unsigned int i) {
 		}
 	}
 
-	std::cout << "n = " << i << " full comparisons skipped: " << skipped << std::endl;
-	std::cout << "n = " << i << ": " << unique.size() << " unique shapes\n" << std::endl;
+	std::cout << "n = " << i << "\n";
+	std::cout << unique.size() << " unique shapes\n";
+	std::cout << "Full comparisons skipped: " << skipped << std::endl;
+	std::cout
+			<< "local: " << (float) localSkip / skipped * 100
+			<< "\ninverse: " << (float) inverseSkip / skipped * 100
+			<< "\nbounds: " << (float) boundsSkip / skipped * 100
+			<< std::endl;
 
 	return unique;
 

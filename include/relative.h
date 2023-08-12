@@ -67,8 +67,6 @@ bool fullCompare(const Tet& A, const Tet& B);
 std::pair<std::vector<unsigned int>, std::vector<unsigned int>>
 getRareSeeds(const std::vector<unsigned int>& A, const std::vector<unsigned int>& B);
 
-std::vector<Tet> generateCompl(unsigned int i);
-
 std::vector<Tet> generate(unsigned int i);
 
 void write(const std::vector<Tet>& v);
