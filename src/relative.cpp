@@ -95,6 +95,40 @@ Tet& Tet::rotZ() {
 	return *this;
 }
 
+Tet Tet::getComplement() {
+	int ax = 0, ay = 0, az = 0, aX = 0, aY = 0, aZ = 0;
+
+	for (int i = 0; i < n; ++i) {
+		ax = std::min(ax, coords[i].x);
+		ay = std::min(ay, coords[i].y);
+		az = std::min(az, coords[i].z);
+		aX = std::max(aX, coords[i].x);
+		aY = std::max(aY, coords[i].y);
+		aZ = std::max(aZ, coords[i].z);
+	}
+
+	std::vector<Pos> complement;
+
+	for (int i = ax; i <= aX; ++i) {
+		for (int j = ay; j <= aY; ++j) {
+			for (int k = az; k <= aZ; ++k) {
+				bool taken = false;
+				for (const auto& p: coords) {
+					if (p.x == i && p.y == j && p.z == k) {
+						taken = true;
+						break;
+					}
+				}
+				if (!taken) {
+					complement.push_back({i, j, k});
+				}
+			}
+		}
+	}
+
+	return {static_cast<unsigned int>(complement.size()), complement};
+}
+
 std::vector<Pos> Tet::getFreeSpaces() const {
 	std::set<int> unique;
 	std::vector<Pos> spaces;
@@ -198,6 +232,27 @@ void Tet::print() const {
 	std::cout << std::endl;
 }
 
+std::array<int, 3> Tet::getBounds() const {
+	int ax = 0, ay = 0, az = 0, aX = 0, aY = 0, aZ = 0;
+
+	for (int i = 0; i < n; ++i) {
+		ax = std::min(ax, coords[i].x);
+		ay = std::min(ay, coords[i].y);
+		az = std::min(az, coords[i].z);
+		aX = std::max(aX, coords[i].x);
+		aY = std::max(aY, coords[i].y);
+		aZ = std::max(aZ, coords[i].z);
+	}
+
+	aX -= ax;
+	aY -= ay;
+	aZ -= az;
+
+	int r[]{aX, aY, aZ};
+	std::sort(r, r + 3);
+	return {r[0], r[1], r[2]};
+}
+
 unsigned toLinear(const Pos& p) {
 	unsigned b = 0;
 	b = (b & ~0x3F000) | (p.x & 0x3F) << 12;
@@ -249,8 +304,8 @@ bool compareLinearCoordinates(const std::vector<unsigned>& A, const std::vector<
 bool fullCompare(const Tet& A, const Tet& B) {
 	/* translation equivalence: relative coordinates occupy the same space
 	 * 1) Find shared piece types which occur least commonly (seeds)
-	 * 2) Set a on a seed. Set b on every seed, each time:
-	 * 3) Rotate b, recalculate linear coordinates and compare
+	 * 2) Set A on a seed. Set B on every seed, each time:
+	 * 3) Rotate B, recalculate linear coordinates and compare
 	 */
 
 	auto minSeeds = getRareSeeds(A.encodeLocal(), B.encodeLocal());
@@ -353,7 +408,7 @@ bool fullCompare(const Tet& A, const Tet& B) {
 
 bool compareLocalEncodings(const std::vector<unsigned>& A, const std::vector<unsigned>& B) {
 	thread_local int* counters = new int[43450]();
-	thread_local unsigned* indices = new unsigned[50]();
+	thread_local unsigned* indices = new unsigned[8000]();
 	int items = 0;
 
 	for (int i = 0; i < A.size(); ++i) {
@@ -445,39 +500,8 @@ getRareSeeds(const std::vector<unsigned int>& A, const std::vector<unsigned int>
 }
 
 bool compareBounds(const Tet& a, const Tet& b) {
-	int ax = 0, ay = 0, az = 0, aX = 0, aY = 0, aZ = 0;
-	int bx = 0, by = 0, bz = 0, bX = 0, bY = 0, bZ = 0;
-
-	for (int i = 0; i < a.n; ++i) {
-		ax = std::min(ax, a.coords[i].x);
-		ay = std::min(ay, a.coords[i].y);
-		az = std::min(az, a.coords[i].z);
-
-		bx = std::min(bx, b.coords[i].x);
-		by = std::min(by, b.coords[i].y);
-		bz = std::min(bz, b.coords[i].z);
-
-		aX = std::max(aX, a.coords[i].x);
-		aY = std::max(aY, a.coords[i].y);
-		aZ = std::max(aZ, a.coords[i].z);
-
-		bX = std::max(bX, b.coords[i].x);
-		bY = std::max(bY, b.coords[i].y);
-		bZ = std::max(bZ, b.coords[i].z);
-	}
-
-	aX -= ax;
-	aY -= ay;
-	aZ -= az;
-	bX -= bx;
-	bY -= by;
-	bZ -= bz;
-
-	int ar[3]{aX, aY, aZ};
-	int br[3]{bX, bY, bZ};
-
-	std::sort(ar, ar + 3);
-	std::sort(br, br + 3);
+	auto ar = a.getBounds();
+	auto br = b.getBounds();
 
 	for (int i = 0; i < 3; ++i) {
 		if (ar[i] != br[i])
@@ -487,13 +511,15 @@ bool compareBounds(const Tet& a, const Tet& b) {
 	return true;
 }
 
-std::vector<Tet> generate(unsigned int i) {
+std::vector<Tet> generateCompl(unsigned int i) {
 	if (i <= 1) {
 		return std::vector{Tet(i, std::vector<Pos>(1, {0, 0, 0}))};
 	}
 
-	auto previous = generate(i - 1);
+	auto previous = generateCompl(i - 1);
 	std::vector<Tet> unique;
+	std::vector<std::vector<LocalGroup::type>> uniqueCode;
+	std::vector<std::vector<LocalGroup::type>> uniqueComplementCode;
 
 	int skipped = 0;
 	int prev = 0;
@@ -510,15 +536,106 @@ std::vector<Tet> generate(unsigned int i) {
 		for (auto& f: faces) {
 			Tet build(p.insert(f));
 			auto buildCode = build.encodeLocal();
+
+			Tet buildComplement = build.getComplement();
+			auto buildComplementCode = buildComplement.encodeLocal();
+
 			bool newShape = true;
 
 			int isLocalEqual = false;
 			int z = -1;
 
-			for (auto& u: unique) {
-				z++;
-				auto uCode = u.encodeLocal();
+			for (int j = 0; j < unique.size(); ++j) {
+				const auto& u = unique[j];
+				const auto& uCode = uniqueCode[j];
+				const auto& uComplementCode = uniqueComplementCode[j];
 
+				z++;
+
+				//if there's a new group, keep true, check next u
+				if (!compareLocalEncodings(uCode, buildCode)) {
+					skipped++;
+					continue;
+				}
+
+				isLocalEqual = z;
+
+				//check bounding box sizes
+				if (!compareBounds(u, build)) {
+					skipped++;
+					continue;
+				}
+
+				//do the same for the complements
+				if (!compareLocalEncodings(uComplementCode, buildComplementCode)) {
+					skipped++;
+					continue;
+				}
+
+				//if all groups match, spin
+				//if same at some rotation, set false, break
+				if (fullCompare(u, build)) {
+					newShape = false;
+					break;
+				}
+			}
+
+			if (newShape) {
+				unique.push_back(build);
+				uniqueCode.push_back(buildCode);
+				uniqueComplementCode.push_back(buildComplementCode);
+				z++;
+			}
+		}
+	}
+
+	std::cout << "n = " << i << " full comparisons skipped: " << skipped << std::endl;
+	std::cout << "n = " << i <<  ": " << unique.size() << " unique shapes\n" << std::endl;
+
+	return unique;
+
+}
+
+std::vector<Tet> generate(unsigned int i) {
+	if (i <= 1) {
+		return std::vector{Tet(i, std::vector<Pos>(1, {0, 0, 0}))};
+	}
+
+	auto previous = generateCompl(i - 1);
+	std::vector<Tet> unique;
+	std::vector<std::vector<LocalGroup::type>> uniqueCode;
+	std::vector<std::vector<LocalGroup::type>> uniqueComplementCode;
+
+	int skipped = 0;
+	int prev = 0;
+	int k = 0;
+	for (auto& p: previous) {
+		if (!(++k % 100)) {
+			std::cout << "n = " << i << ": " << (float) k / previous.size() << " with " << unique.size() - prev
+					  << " new unique shapes\n";
+			prev = unique.size();
+		}
+
+		auto faces = p.getFreeSpaces();
+
+		for (auto& f: faces) {
+			Tet build(p.insert(f));
+			auto buildCode = build.encodeLocal();
+
+			Tet buildComplement = build.getComplement();
+			auto buildComplementCode = buildComplement.encodeLocal();
+
+			bool newShape = true;
+
+			int isLocalEqual = false;
+			int z = -1;
+
+			for (int j = 0; j < unique.size(); ++j) {
+				const auto& u = unique[j];
+				const auto& uCode = uniqueCode[j];
+				const auto& uComplementCode = uniqueComplementCode[j];
+
+				z++;
 
 				//if there's a new group, keep true, check next u
 				if (!compareLocalEncodings(uCode, buildCode)) {
@@ -544,12 +661,15 @@ std::vector<Tet> generate(unsigned int i) {
 
 			if (newShape) {
 				unique.push_back(build);
+				uniqueCode.push_back(buildCode);
+				uniqueComplementCode.push_back(buildComplementCode);
 				z++;
 			}
 		}
 	}
 
-	std::cout << "n = " << i << " full comparisons skipped: " << skipped << std::endl << std::endl;
+	std::cout << "n = " << i << " full comparisons skipped: " << skipped << std::endl;
+	std::cout << "n = " << i <<  ": " << unique.size() << " unique shapes\n" << std::endl;
 
 	return unique;
 
