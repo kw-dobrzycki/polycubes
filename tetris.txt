@@ -1,0 +1,473 @@
+counting unique n-block tetriminos
+
+to remove variance in encoding under translations, we must forget the grid and focus on what each tetrimino knows about itself.
+Each tetrimino (tet) consists of n pieces, each a cube (in 3 dimensions).
+We can encode the tet as a list of length 6n, naming which pieces are adjacent to each face of each piece.
+
+First, think about this in just two dimensions.
+
+The S tet:
+  ■ ■
+■ ■
+
+and the Z tet:
+■ ■
+  ■ ■
+
+are similar, but S cannot be transformed into Z by rotation or translation.
+
+We can name each piece in the S tet:
+  1 2
+3 4
+
+and define the directions to be in this order: up, right, down, left
+
+Its encoding would be
+0240|0001|0400|1003
+
+This reads: piece 1 has piece 2 to its right and piece 4 below, piece 2 has piece 1 to its left, etc.
+
+ROTATIONS:
+Now rotate the S anticlockwise to get:
+■
+■ ■
+  ■
+  
+and number it
+2
+1 4
+  3
+  
+then its encoding is
+2400|0010|4000|0031
+
+Now rotate the S clockwise to get:
+■
+■ ■
+  ■
+  
+and number it
+3
+4 1
+  2
+  
+then its encoding is
+0024|1000|0040|3100
+
+Notice that a clockwise rotation induces a right cycle shift on each 4-bit section, 
+while an anticlockwise rotation induces a left cycle shift.
+
+=> For same-name piece tets: rotations cycle-shift each 4-bit section.
+
+
+NAMES:
+For that exercise, the piece names of the rotated tets were the same as the original. Consider now this tet:
+1 2 3
+  4
+  
+0200|0341|0002|2000
+
+3 4 1
+  2
+  
+0004|4000|0400|0123
+
+To recognise that this encodes the same tet as the one above, we must forget the piece names.
+We are left with
+0X00|0XXX|000X|X000 = 4, 7, 1, 8
+000X|X000|0X00|0XXX = 1, 8, 4, 7
+
+Notice we can permute the first to get the second; they form the same set.
+
+=> For same-rot tets: if shapes are congruent, their encodings must be equal sets of 4-bit binaries.
+
+For that exercise, the tets were under the same rotation. Now consider the same tet as above, rotated clockwise:
+  3
+2 4
+  1
+  
+0004|0400|0040|3012 = 1, 4, 2, 11
+
+Compare to:
+0200|0341|0002|2000 = 4, 7, 1, 8
+
+How can we deduce that they are the same shape? Remember, we must be invariant under both rotations and piece names.
+We can't first check whether they have the same shape (by reconstruction from names) because possible rotations have caused bit-shifts.
+
+Do we need to apply all rotations and check whether any can be renamed?
+What if we can predict the rotations needed? Or at least remove the ones which are obviously false.
+
+For each 4-bit containing k bits:
+	find the possible rotations which yield name invariance
+	
+e.g. 
+segment 1 has 2 options: 2<<, 3<< (omit no rotation, clearly the sets are not the same)
+segment 2 has 2 options.
+segment 3 has 2 options.
+segment 4 has 1 option. If shape is not equal (sets are different), return false.
+
+This can easily be precomputed by hand.
+0000= no piece.
+0001= 1, 8, 4, 2
+0011= 3, 9, 12, 6
+0101= 5, 10
+0111= 7, 11, 13, 14
+1111= 15
+
+This table tells us which encodings describe the same tet under all rotations. But there's still work to do.
+
+To be fair, only 4 (3 + none) rotations need to be performed per pair to verify congruence, not that hard. Come back to this idea later.
+
+3 dimensions:
+
+consider again the T:
+■ ■ ■
+  ■
+  
+1 2 3
+  4
+  
+This tet is called A.
+
+Rotate it clockwise around the Z axis, then around the X axis.
+  ■
+■ ■
+  ■
+  
+  1
+4 2
+  3
+  
+This is B,
+  
+■ ■
+
+(looking from above)
+  1
+4 2
+  3
+  
+This is C.
+
+First, we need an encoding. Cubes now have 6 sides; the directions are now up, behind, right, front, left, under.
+Consider the 6-bit encoding for A:
+002000|003014|000020|200000
+
+ROTATIONS:
+The reason why bit shifts worked well in the 2D case was because there was a clear cycle around a piece. In 3D, there are 3 cycles and they overlap. We will need to define cycle indices. Clockwise rotations are when looking towards the negative end of the axis.
+
+Rotations around the Y axis: 1,2,3,4
+Rotations around the X axis: 0,1,5,3
+Rotations around the Z axis: 0,2,5,4
+
+The encoding for B is (with the same names):
+000002|100043|200000|002000
+
+	To check:
+	_ _ __|_ _ __|_ _ __|_ _ __
+	002000|003014|000020|200000
+	gives
+	_ _ __|_ _ __|_ _ __|_ _ __
+	000002|100043|200000|002000
+
+The encoding for C is:
+000200|010340|020000|002000
+I trust it holds as well.
+
+NAMES:
+The concept remains the same(?)
+
+We need to apply 24 rotations this time. 4 rotations for each of 6 directions.
+Instead of applying rotations, let's review the previous observation:
+
+0
+16,8,4,2,1,32
+3,33,48,24,12,6
+17,40,20,10,5,34
+49,56,28,14,7,35
+18,9,36
+37,50,25,44,22,11
+13,38,19,41,52,26
+39,51,57,60,30,15
+21,42
+46,23,43,53,58,29
+27,45,54
+61,62,31,47,55,59
+63
+
+these form groups of rotations, so instead of performing rotations, could we use membership tests?
+
+Let's see for tets A and B, whose encodings are 
+A: 002000|003014|000020|200000
+B: 000002|100043|200000|002000
+
+A: 00X000|00X0XX|0000X0|X00000 = 8, 11, 2, 32
+B: 00000X|X000XX|X00000|00X000 = 1, 35, 32, 8
+
+1, 2, 8 and 32 belong in the same group, while 11 and 35 do not. This would indicate that these are not the same tet.
+Why is this?
+It's because we took the bits of the whole 6-bit to decode the groups, while each group is defined by a rotation, which only shifts 4 bits.
+The way the groups above were generated was by using 6-bit shifts, which makes them invalid. The correct groups are:
+
+Rotations around the Y axis: 1,2,3,4
+Rotations around the X axis: 0,1,5,3
+Rotations around the Z axis: 0,2,5,4
+
+X rotation:
+_ _ __
+0X0X00= 0 - no piece.
+0X0X01= 1, 2, 4, 8
+0X0X11= 3, 5, 10, 12
+1X0X01= 6, 9
+1X0X11= 7, 11, 13, 14
+1X1X11= 15
+
+Y rotation:
+ ____
+X0000X= 0 - no piece.
+X0001X= 1, 2, 4, 8
+X0011X= 3, 6, 9, 12
+X0101X= 5, 10
+X0111X= 7, 11, 13, 14
+X1111X= 15
+
+Z rotation:
+_ _ __
+0X0X00= 0 - no piece.
+0X0X01= 1, 2, 4, 8
+0X0X11= 3, 5, 10, 12
+1X0X01= 6, 9
+0X1X11= 7, 11, 13, 14
+1X1X11= 15
+
+Observe that the first and last 2 groups are identical for the 3 rotations.
+The all-0 and all-1 groups are rotation invariant. Geometrically, this means that a piece with all 6 faces covered will still have the same set of faces covered after the rotation.
+
+
+let's consider the Z-rot slice of each encoding:
+   _ _ __|_ _ __|_ _ __|_ _ __
+A: 00X000|00X0XX|0000XX|X00000 = 4, 7, 3, 8
+B: 00000X|X000XX|X000X0|00X000 = 1, 11, 10, 4
+
+
+So, can we use this to our advantage?
+Not really, we've sliced the encodings to give us infromation about individual rotations. Most of the time, rotations will be compound.
+
+We need to find a more useful table.
+What if we compared all 6 bits again, but performed individual rotations on just 4 bits at a time?
+To generate this table, enumerate all 2^6 pieces, and perform all 24 rotations (6 sides, 4 on each). Actually, only 12 are needed (3 axes * 4 rotations). Then group the encodings which are equal under any rotation. This will separate pieces (specifically the one in brackets) like this:
+
+■(■)■
+from 
+■(■)
+  ■
+  
+which is exactly what we're looking for.
+
+0, 
+4, 16, 32, 1, 8, 2, 
+18, 9, 17, 24, 34, 40, 48, 6, 3, 12, 5, 36, 
+25, 13, 7, 56, 44, 38, 19, 50, 
+20, 33, 10, 
+11, 42, 14, 26, 35, 21, 41, 22, 37, 49, 52, 28, 
+27, 23, 54, 39, 46, 57, 29, 45, 58, 15, 60, 51, 
+43, 30, 53, 
+31, 62, 61, 59, 55, 47, 
+63, 
+
+	
+Just to help visualise,
+20 looks like this:
+0(1)0[1]00
+
+from looking down -Y, -Z up:
+  (■)
+   ■
+  [■]
+
+we expect this to have 3 identical rotations: vertical, horizontal (along X) and another horizontal (along Z, this is 20).
+
+indeed, 33 is
+(1)0000[1]
+
+which from looking down -Z, +Y up:
+  ■
+  ■
+  ■
+  
+and 10 is
+00(1)0[1]0
+
+looking down -Z, +Y up:
+[■] ■ (■).
+
+This is the correct table.
+Let's do our example again.
+
+A: 002000|003014|000020|200000
+B: 000002|100043|200000|002000
+
+A: 00X000|00X0XX|0000X0|X00000 = 8, 11, 2, 32
+B: 00000X|X000XX|X00000|00X000 = 1, 35, 32, 8
+C: 000X00|0X0XX0|0X0000|00X000 = 4, 22, 16, 8
+
+All elements of C belong to some rotation group of elements of A. But does this mean that A = C?
+No.
+
+
+the S:
+200000|003001|400020|000003
+X00000|00X00X|X000X0|00000X = 32, 9, 34, 1 = [1, 2] >> 2 = 2, 24. wrong. << 2 =  
+
+the R:
+302000|010000|004001|000030
+X0X000|0X0000|00X00X|0000X0 = 40, 16, 9, 2 = [1, 2]
+
+
+0, (SINGLE - 0)
+4, 16, 32, 1, 8, 2, (COUPLE - 1)
+18, 9, 17, 24, 34, 40, 48, 6, 3, 12, 5, 36, (L - 2)
+25, 13, 7, 56, 44, 38, 19, 50, (AXES - 3)
+20, 33, 10, (LINE - 4)
+11, 42, 14, 26, 35, 21, 41, 22, 37, 49, 52, 28, (T - 5)
+27, 23, 54, 39, 46, 57, 29, 45, 58, 15, 60, 51, (T hat - 6)
+43, 30, 53, (CROSS - 7)
+31, 62, 61, 59, 55, 47, (CHAIR WHEELS - 8)
+63, (FULL - 9)
+
+This table separates types of blocks based on their neighbourhood.
+So it is only as useful as to tell us whether there are any types of blocks in tet A which are not in tet B.
+This is not a sufficient test, but it does reduce the search space. For example:
+
+    5
+	4
+1 2 3	(3 end pieces, 2 middle pieces, 1 T piece)
+    6
+	
+will appear the same as
+
+
+2
+1 4 5 6 (3 end pieces, 2 middle pieces, 1 T piece)
+3
+
+when the sets of groups are compared.
+
+What other improvements can we make?
+Let's revise the encoding.
+A piece is represented by 6 bits: 001010 represents a piece with a neighbour to the left and right.
+What if we included some information about the neighbours?
+
+Let's stick to 6 digits for now to avoid creating more work when rotating.
+Instead of saying whether there is a neighbour at each face, we can say what type of piece there is at that face. We can go one step further and say exactly which piece it is (one of 64) which will give the rotational information about each neighbour, but we'll think about that later.
+There are a total of 10 types and the "no neighbour" digit, though the first piece type is one with no neighbours, so we can exclude it from our encodings.
+This gives a total of 10 digits required, with 0 meaning no neighbour and 1-9 denoting the type of neighbour on that face.
+We immediately question how many unique types of pieces are there now. (This is wrong, does not account for neighbour types defining directions (e.g. 112 has 12 rotations, not 8) and handedness as a consequence)
+
+piece type														number of neighbours		number of neighbour types		rotations (group length)
+0, (SINGLE)														0							0										1
+4, 16, 32, 1, 8, 2, (COUPLE)									1							9										6
+18, 9, 17, 24, 34, 40, 48, 6, 3, 12, 5, 36, (L)					2							81										12
+25, 13, 7, 56, 44, 38, 19, 50, (AXES)							3							729										8
+20, 33, 10, (LINE)												2							81										3
+11, 42, 14, 26, 35, 21, 41, 22, 37, 49, 52, 28, (T)				3							729										12
+27, 23, 54, 39, 46, 57, 29, 45, 58, 15, 60, 51, (T hat)			4							6561									12
+43, 30, 53, (CROSS)												4							6561									3
+31, 62, 61, 59, 55, 47, (CHAIR WHEELS) 							5							59049									6
+63, (FULL)														6							531441									1
+
+This introduces more information about the locality of each piece, which will reduce the search space further. But we need to check that this extension is worth the computational and spatial effort.
+
+How can we check the types of neighbours of 2 pieces?
+
+Suppose we have A, B = Y(A), C:
+
+A 001060
+B 060100
+C 102030
+
+To determine whether A and B are the same, we need a new table. For each type of piece, we need to enumerate the neighbour types too.
+How big is this table?
+For type 2 (COUPLE), there is 1 neighbour that can take one of 9 values and be at 6 rotations which gives 6 * 9 ^ 1 = 54 unique  pieces (N2). The rotations matter because they decide which bit represents that neighbour.
+For type 5 (LINE), there are 2 neighbours which gives 81 possible neighbour-type combinations, with 3 rotations. 3 * 81 = 243 unique  pieces (N5).
+For type 1 (SINGLE), there are no neighbours, and only 1 piece exists in this group.
+Summing over the whole table, this gives a total of 1,000,000 different piece types. Each can be encoded with an integer which takes up 4 bytes, giving a total of 3.81 mibibytes.
+
+We will use hexadecimal encoding for quick conversion to ints (since we can use bit shifts). //using base-10 encoding for now
+
+So what does this table look like? How do we want to group the pieces?
+We want rotations of the same piece type to be stored in one group, with "type" defined as the type of each neighbour and its relative position.
+
+For example, in type 2:
+100000
+010000
+001000
+000100
+000010
+000001
+belong to one group, while
+
+200000
+020000
+002000
+000200
+000020
+000002
+belong to another.
+
+This gives (number of neighbour types) rows, each with its corresponding (rotations) columns.
+
+To check, type 5:
+001010
+010100
+100001
+belong to one group, while
+
+001020
+010200
+100002
+
+belong to another, with 81 (neighbour types) such groups, 3 elements each (rotations).
+
+Type 1 (SINGLE):
+000000
+
+In total, there are 605,242 groups. //wrong
+
+Back to our example:
+
+A 001060 = 4192
+B 060100 = 393472
+C 102000 = 1056768
+
+We need to extend the lookup table too. It will now contain 1000000 elements and point to one of 605242 groups.
+groupOf[A] = groupOf[B] != groupOf[C]
+
+To generate this table, create all 10 ^ 6 elements, perform 24 rotations on each and save the results in a set. Then select unique sets.
+
+This shows the type of each block
+
+0, (SINGLE - 0)
+4, 16, 32, 1, 8, 2, (COUPLE - 1)
+18, 9, 17, 24, 34, 40, 48, 6, 3, 12, 5, 36, (L - 2)
+25, 13, 7, 56, 44, 38, 19, 50, (AXES - 3)
+20, 33, 10, (LINE - 4)
+11, 42, 14, 26, 35, 21, 41, 22, 37, 49, 52, 28, (T - 5)
+27, 23, 54, 39, 46, 57, 29, 45, 58, 15, 60, 51, (T hat - 6)
+43, 30, 53, (CROSS - 7)
+31, 62, 61, 59, 55, 47, (CHAIR WHEELS - 8)
+63, (FULL - 9)
+
+    1
+	4
+1 4 5	(3 end pieces, 2 middle pieces, 1 T piece)
+    1
+
+
+1
+5 4 4 1 (3 end pieces, 2 middle pieces, 1 T piece)
+1
+
+Other optimisations:
+We can convert the rotation (permutation) operation into a lookup table. To do this, we would need to use all 6 digits, with 2 digits always being rotation invariant (we'd need to duplicate the rotation 4 times or extract the digits which are part of the rotation) - don't be alarmed! We're not creating more work since, if we use all 6 digits, we might do away with digits altogether and represent each piece type by a singe number. We reduce the work fourfold, but may need to compromise on the memory (as mentioned with the duplication).
+

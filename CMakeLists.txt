@@ -3,4 +3,14 @@ project(tetris)
 
 set(CMAKE_CXX_STANDARD 23)
 
-add_executable(tetris main.cpp)
+add_executable(tetris
+        main.cpp
+        include/poly.h
+        include/relative.h
+        src/relative.cpp
+        tests/test.cpp
+        include/groups.h
+        src/groups.cpp
+)
+
+target_include_directories(tetris PUBLIC include)
