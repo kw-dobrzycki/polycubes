@@ -33,29 +33,35 @@ Tet::Tet(unsigned int n, const std::vector<Pos>& coordinates)
 	//decode connectivity (name the pieces for now)
 	for (int i = 0; i < n; ++i) {
 		for (int j = 0; j < 6; ++j) {
-			auto offset = coordinates[i] + offsets[j];
+
 			//go through each face and check for a block at that coordinate
 			for (int k = 0; k < n; ++k) {
-				if (offset == coordinates[k]) {
-					pieces[i] += (k + 1) << (5 - j) * 4; //names start from 1
+				if (coordinates[i] + offsets[j] == coordinates[k]) {
+					pieces[i] |= 1 << (5 - j) * 4; //mark as having a neighbour
 					neighbours[i * 6 + j] = k + 1; //just like names but these don't change
+					break; //no other neighbour on that face
 				}
 			}
 		}
 	}
 
-	//decode neighbour types
+	//get self type and update neighbours
 	for (int i = 0; i < n; ++i) {
+		int self = 0;
+
 		for (int j = 0; j < 6; ++j) {
-			int neighbour = i * 6 + j;
-			if (neighbours[neighbour]) {
-				int neighbourName = neighbours[neighbour] - 1;
-				//calculate the group of the neighbour
-				int sum = 0;
-				for (int k = 0; k < 6; ++k) {
-					sum += (neighbours[neighbourName * 6 + k] > 0) << (5 - k);
-				}
-				pieces[i] = (pieces[i] & ~(0xF << (5 - j) * 4)) | (selfGroupOf[sum] << (5 - j) * 4);
+			if (pieces[i] & 0xF << j * 4) {
+				self += 1 << j;
+			}
+		}
+		auto group = selfGroupOf[self];
+
+		//update neighbours
+		for (int j = 0; j < 6; ++j) {
+			const auto ni = neighbours[i * 6 + j];
+			if (ni) {
+				auto& neighbour = pieces[ni - 1];
+				neighbour = neighbour & ~(0xF << (5 - opposite[j]) * 4) | group << (5 - opposite[j]) * 4;
 			}
 		}
 	}
@@ -95,7 +101,7 @@ Tet& Tet::rotZ() {
 	return *this;
 }
 
-Tet Tet::getComplement() {
+Tet Tet::getComplement() const {
 	int ax = 0, ay = 0, az = 0, aX = 0, aY = 0, aZ = 0;
 
 	for (int i = 0; i < n; ++i) {
@@ -214,10 +220,18 @@ std::vector<unsigned> Tet::encodeLocal() const {
 	return code;
 }
 
-std::vector<unsigned> Tet::encode() const {
+std::vector<unsigned> Tet::encodeSelf() const {
 	std::vector<unsigned> code(n);
 	for (int i = 0; i < n; ++i) {
-		code[i] = LocalGroup::toDen(pieces[i]);
+		int self = 0;
+
+		for (int j = 0; j < 6; ++j) {
+			if (pieces[i] & (0xF << j * 4)) {
+				self += 1 << j;
+			}
+		}
+
+		code[i] = selfGroupOf[self];
 	}
 	return code;
 }
@@ -590,7 +604,7 @@ std::vector<Tet> generateCompl(unsigned int i) {
 	}
 
 	std::cout << "n = " << i << " full comparisons skipped: " << skipped << std::endl;
-	std::cout << "n = " << i <<  ": " << unique.size() << " unique shapes\n" << std::endl;
+	std::cout << "n = " << i << ": " << unique.size() << " unique shapes\n" << std::endl;
 
 	return unique;
 
@@ -657,7 +671,11 @@ std::vector<Tet> generate(unsigned int i) {
 					newShape = false;
 					break;
 				}
+				if (!compareLocalEncodings(uComplementCode, buildComplementCode)) {
+					auto x = 0;
+				}
 			}
+
 
 			if (newShape) {
 				unique.push_back(build);
@@ -669,7 +687,7 @@ std::vector<Tet> generate(unsigned int i) {
 	}
 
 	std::cout << "n = " << i << " full comparisons skipped: " << skipped << std::endl;
-	std::cout << "n = " << i <<  ": " << unique.size() << " unique shapes\n" << std::endl;
+	std::cout << "n = " << i << ": " << unique.size() << " unique shapes\n" << std::endl;
 
 	return unique;
 

@@ -48,13 +48,13 @@ struct Tet {
 
 	std::vector<unsigned> encodeLocal() const;
 
-	std::vector<unsigned> encode() const;
+	std::vector<unsigned> encodeSelf() const;
 
 	void print() const;
 
 	std::array<int, 3> getBounds() const;
 
-	Tet getComplement();
+	Tet getComplement() const;
 };
 
 bool compareLocalEncodings(const std::vector<unsigned>& A, const std::vector<unsigned>& B);
@@ -68,6 +68,7 @@ std::pair<std::vector<unsigned int>, std::vector<unsigned int>>
 getRareSeeds(const std::vector<unsigned int>& A, const std::vector<unsigned int>& B);
 
 std::vector<Tet> generateCompl(unsigned int i);
+
 std::vector<Tet> generate(unsigned int i);
 
 void write(const std::vector<Tet>& v);
