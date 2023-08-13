@@ -10,7 +10,6 @@
 #include <iostream>
 #include <fstream>
 #include "poly.h"
-#include "relative.h"
 
 namespace SelfGroup {
 

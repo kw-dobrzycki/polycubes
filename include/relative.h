@@ -6,6 +6,7 @@
 #define TETRIS_RELATIVE_H
 
 #include "poly.h"
+#include "Tet.h"
 #include <vector>
 #include <set>
 #include <array>
@@ -15,49 +16,44 @@ extern const unsigned* const localGroupOf;
 extern unsigned opposite[6];
 extern const Pos offsets[6];
 
-struct Tet {
+template<class T, int range, int max_items>
+bool sparseCompare(const std::vector<T>& A, const std::vector<T>& B) {
+	thread_local int* counters = new int[range]();
+	thread_local unsigned* indices = new unsigned[max_items]();
+	int items = 0;
 
-	unsigned int n;
+	for (int i = 0; i < A.size(); ++i) {
+		counters[A[i]]++;
+		counters[B[i]]--;
+		indices[items++] = A[i];
+		indices[items++] = B[i];
+	}
 
-	std::vector<uint32_t> pieces;
+	bool equal = true;
+	int tail = 0;
+	for (int i = 0; i < items; ++i) {
+		if (counters[indices[i]] != 0) {
+			equal = false;
+			tail = i;
+			break;
+		}
 
-	/**
-	 * Coordinates of each block. THIS FIELD IS NOT MAINTAINED FOR EXTENDED FUNCTIONALITY.
-	 */
-	std::vector<Pos> coords;
+		//counter is 0 but index is not, clean up index
+		indices[i] = 0;
+	}
 
-	std::vector<int> neighbours;
+	//clean up the rest
+	for (int i = tail; i < items; ++i) {
+		counters[indices[i]] = 0;
+		indices[i] = 0;
+	}
 
-	Tet(unsigned int n, const std::vector<Pos>& coordinates);
+	return equal;
+}
 
-	/**
-	 * DO NOT USE THIS FOR EXPERIMENTATION
-	 */
-	Tet(unsigned int n, const std::vector<uint32_t>& pieces, const std::vector<Pos>& coords,
-		const std::vector<int>& neighbours);
+inline auto compareLocalEncodings = sparseCompare<unsigned, 43450, 20 * 20 * 20>;
 
-	Tet& rotX();
-
-	Tet& rotY();
-
-	Tet& rotZ();
-
-	std::vector<Pos> getFreeSpaces() const;
-
-	Tet insert(const Pos& block) const;
-
-	std::vector<unsigned> encodeLocal() const;
-
-	std::vector<unsigned> encodeSelf() const;
-
-	void print() const;
-
-	std::array<int, 3> getBounds() const;
-
-	Tet getComplement() const;
-};
-
-bool compareLocalEncodings(const std::vector<unsigned>& A, const std::vector<unsigned>& B);
+inline auto comparePopulations = sparseCompare<unsigned, 27, 20 * 20 * 20>;
 
 /**
  * @return translational and rotational equivalence

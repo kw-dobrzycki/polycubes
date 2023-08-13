@@ -11,6 +11,7 @@ add_executable(tetris
         tests/test.cpp
         include/groups.h
         src/groups.cpp
-)
+        include/Tet.h
+        src/Tet.cpp)
 
 target_include_directories(tetris PUBLIC include)
