@@ -232,6 +232,7 @@ std::vector<Tet> generate(unsigned int i) {
 	int inverseSkip = 0;
 	int boundsSkip = 0;
 	int popSkip = 0;
+	int full = 0;
 
 	int prev = 0;
 	int k = 0;
@@ -253,26 +254,27 @@ std::vector<Tet> generate(unsigned int i) {
 
 			bool newShape = true;
 
-			int isLocalEqual = false;
-			int z = -1;
-
 			for (int j = 0; j < unique.size(); ++j) {
 				const auto& u = unique[j];
 				const auto& uCode = uniqueCode[j];
 				const auto& uComplementCode = uniqueComplementCode[j];
 
-				z++;
+				//filters go here
 
-				//if there's a new group, keep true, check next u
+				if (uComplementCode.size() != buildComplementCode.size() ||
+					!compareLocalEncodings(uComplementCode, buildComplementCode)) {
+					skipped++;
+					inverseSkip++;
+					continue;
+				}
+
 				if (!compareLocalEncodings(uCode, buildCode)) {
 					skipped++;
 					localSkip++;
 					continue;
 				}
 
-				isLocalEqual = z;
-
-				if (!comparePopulations(u.population, build.population)){
+				if (!comparePopulations(u.population, build.population)) {
 					skipped++;
 					popSkip++;
 					continue;
@@ -284,17 +286,22 @@ std::vector<Tet> generate(unsigned int i) {
 					continue;
 				}
 
-				if (uComplementCode.size() == buildComplementCode.size() &&
-					!compareLocalEncodings(uComplementCode, buildComplementCode)) {
-					skipped++;
-					inverseSkip++;
-					continue;
-				}
-
-				//if all groups match, spin
-				//if same at some rotation, set false, break
+				//if Tet passes, do full compare
+				full++;
 				if (fullCompare(u, build)) {
 					newShape = false;
+
+					if (i == 9 && unique.size() > 5000) {
+						for (const auto& c: build.coords) {
+							std::cout << c.x << " " << c.y << " " << c.z << std::endl;
+						}
+						std::cout << std::endl;
+						for (const auto& c: u.coords) {
+							std::cout << c.x << " " << c.y << " " << c.z << std::endl;
+						}
+
+						std::exit(1);
+					}
 					break;
 				}
 			}
@@ -303,7 +310,6 @@ std::vector<Tet> generate(unsigned int i) {
 				unique.push_back(build);
 				uniqueCode.push_back(buildCode);
 				uniqueComplementCode.push_back(buildComplementCode);
-				z++;
 			}
 		}
 	}
@@ -312,10 +318,11 @@ std::vector<Tet> generate(unsigned int i) {
 	std::cout << unique.size() << " unique shapes\n";
 	std::cout << "Full comparisons skipped: " << skipped << "\n";
 	std::cout
-			<< "local: " << (float) localSkip / skipped * 100
+			<< "Full comparisons computed: " << full
 			<< "\ninverse: " << (float) inverseSkip / skipped * 100
-			<< "\nbounds: " << (float) boundsSkip / skipped * 100
+			<< "\nlocal: " << (float) localSkip / skipped * 100
 			<< "\npopulation: " << (float) popSkip / skipped * 100
+			<< "\nbounds: " << (float) boundsSkip / skipped * 100
 			<< std::endl;
 
 	return unique;

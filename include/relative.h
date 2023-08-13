@@ -16,6 +16,9 @@ extern const unsigned* const localGroupOf;
 extern unsigned opposite[6];
 extern const Pos offsets[6];
 
+/*
+ * Assumes A and B have same length
+ */
 template<class T, int range, int max_items>
 bool sparseCompare(const std::vector<T>& A, const std::vector<T>& B) {
 	thread_local int* counters = new int[range]();
