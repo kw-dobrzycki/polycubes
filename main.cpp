@@ -2,6 +2,6 @@
 #include "relative.h"
 
 int main() {
-	generate(9);
+	generate(8);
 	return 0;
 }

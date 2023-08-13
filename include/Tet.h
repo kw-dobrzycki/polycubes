@@ -22,7 +22,7 @@ struct Tet {
 	std::vector<uint32_t> pieces;
 	std::vector<Pos> coords;
 	std::vector<int> neighbours;
-	std::vector<uint32_t> population;
+	std::vector<uint8_t> population;
 
 	Tet(unsigned int n, const std::vector<Pos>& coordinates);
 
@@ -30,7 +30,7 @@ struct Tet {
 	 * DOES NOT MAINTAIN CONSISTENCY
 	 */
 	Tet(unsigned int n, const std::vector<uint32_t>& pieces, const std::vector<Pos>& coords,
-		const std::vector<int>& neighbours, const std::vector<uint32_t>& population);
+		const std::vector<int>& neighbours, const std::vector<uint8_t>& population);
 
 	Tet& rotX();
 

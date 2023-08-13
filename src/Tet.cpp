@@ -68,7 +68,7 @@ Tet::Tet(unsigned int n, const std::vector<Pos>& coordinates)
 }
 
 Tet::Tet(unsigned int n, const std::vector<uint32_t>& pieces, const std::vector<Pos>& coords,
-		 const std::vector<int>& neighbours, const std::vector<uint32_t>& population)
+		 const std::vector<int>& neighbours, const std::vector<uint8_t>& population)
 		: n(n),
 		  pieces(pieces),
 		  coords(coords),
@@ -159,7 +159,7 @@ Tet Tet::insert(const Pos& block) const {
 	auto c_pieces = pieces;
 	auto c_coords = coords;
 	auto c_neighbours = neighbours;
-	std::vector<uint32_t> c_population(n + 1);
+	decltype(population) c_population(n + 1);
 
 	c_pieces.push_back(0);
 	c_neighbours.push_back(0);

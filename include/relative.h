@@ -56,7 +56,7 @@ bool sparseCompare(const std::vector<T>& A, const std::vector<T>& B) {
 
 inline auto compareLocalEncodings = sparseCompare<unsigned, 43450, 20 * 20 * 20>;
 
-inline auto comparePopulations = sparseCompare<unsigned, 27, 20 * 20 * 20>;
+inline auto comparePopulations = sparseCompare<uint8_t, 27, 20 * 20 * 20>;
 
 /**
  * @return translational and rotational equivalence
