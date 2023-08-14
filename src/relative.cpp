@@ -41,111 +41,6 @@ void toLinearVector(const Tet& t, std::vector<unsigned>& dst) {
 	}
 }
 
-bool fullCompare(const Tet& A, const Tet& B) {
-	/* translation equivalence: relative coordinates occupy the same space
-	 * 1) Find shared piece types which occur least commonly (seeds)
-	 * 2) Set A on a seed. Set B on every seed, each time:
-	 * 3) Rotate B, recalculate linear coordinates and compare
-	 */
-
-	auto minSeeds = getRareSeeds(A.encodeLocal(), B.encodeLocal());
-
-	if (minSeeds.first.empty())
-		return false;
-
-	std::vector<unsigned> reference(A.n);
-	Tet relative = A;
-	Tet comparator = B;
-	std::vector<unsigned> seeds = minSeeds.second;
-
-	if (minSeeds.first.size() <= minSeeds.second.size()) {
-		//rebase B (as reference)
-		auto seed = B.coords[minSeeds.second[0]];
-		for (int i = 0; i < B.n; ++i) {
-			reference[i] = toLinear(B.coords[i] - seed);
-			relative.coords[i] = B.coords[i] - seed;
-		}
-		comparator = A;
-		seeds = minSeeds.first;
-
-	} else {
-		//rebase A (as reference)
-		auto seed = A.coords[minSeeds.first[0]];
-		for (int i = 0; i < A.n; ++i) {
-			reference[i] = toLinear(A.coords[i] - seed);
-			relative.coords[i] = A.coords[i] - seed;
-		}
-	}
-
-	std::vector<unsigned> rotated(comparator.n);
-
-	for (int i = 0; i < seeds.size(); ++i) {
-		auto seed = comparator.coords[seeds[i]];
-
-		//rebase comparator
-		for (int j = 0; j < comparator.n; ++j) {
-			comparator.coords[j] = comparator.coords[j] - seed;
-		}
-
-		//rotate, linearise and compare
-		//spin on top
-		for (int j = 0; j < 4; ++j) {
-			comparator.rotY();
-			toLinearVector(comparator, rotated);
-			if (compareLinearCoordinates(reference, rotated))
-				return true;
-		}
-
-		//spin on back
-		comparator.rotX();
-		for (int j = 0; j < 4; ++j) {
-			comparator.rotZ();
-			toLinearVector(comparator, rotated);
-			if (compareLinearCoordinates(reference, rotated))
-				return true;
-		}
-
-		//spin on right
-		comparator.rotY();
-		for (int j = 0; j < 4; ++j) {
-			comparator.rotX();
-			toLinearVector(comparator, rotated);
-			if (compareLinearCoordinates(reference, rotated))
-				return true;
-		}
-
-		//spin on front
-		comparator.rotY();
-		for (int j = 0; j < 4; ++j) {
-			comparator.rotZ();
-			toLinearVector(comparator, rotated);
-			if (compareLinearCoordinates(reference, rotated))
-				return true;
-		}
-
-		//spin on left
-		comparator.rotY();
-		for (int j = 0; j < 4; ++j) {
-			comparator.rotX();
-			toLinearVector(comparator, rotated);
-			if (compareLinearCoordinates(reference, rotated))
-				return true;
-		}
-
-		//spin on bottom
-		comparator.rotY();
-		comparator.rotX();
-		for (int j = 0; j < 4; ++j) {
-			comparator.rotY();
-			toLinearVector(comparator, rotated);
-			if (compareLinearCoordinates(reference, rotated))
-				return true;
-		}
-	}
-
-	return false;
-}
-
 std::pair<std::vector<unsigned int>, std::vector<unsigned int>>
 getRareSeeds(const std::vector<unsigned int>& A, const std::vector<unsigned int>& B) {
 	thread_local int* countA = new int[43451]();
@@ -205,6 +100,136 @@ getRareSeeds(const std::vector<unsigned int>& A, const std::vector<unsigned int>
 	return {a, b};
 }
 
+bool fullCompareRotateSeeds(const std::vector<unsigned>& referenceLinearSeeds, Tet seedComparator) {
+	//the first seedA is the A seed
+
+	for (int i = 0; i < seedComparator.n; ++i) { //todo don't need to repeat, only check 1.
+
+		//rebase B
+		auto seed = seedComparator.coords[i];
+		for (int j = 0; j < seedComparator.n; ++j) {
+			seedComparator.coords[j] = seedComparator.coords[j] - seed;
+		}
+
+		unsigned rot1 = 0; //which face
+		unsigned rot2 = 0; //which rotation of the face
+
+		//pick non-origin seed to rotate
+		Tet comparator{1, {seedComparator.coords[(i + 1) % seedComparator.n]}};
+
+
+
+	}
+
+	return false;
+}
+
+bool fullCompare(const Tet& A, const Tet& B) {
+	/* translation equivalence: relative coordinates occupy the same space
+	 * 1) Find shared piece types which occur least commonly (seeds)
+	 * 2) Set A on a seed. Set B on every seed, each time:
+	 * 3) Rotate B, recalculate linear coordinates and compare
+	 */
+
+	auto minSeeds = getRareSeeds(A.encodeLocal(), B.encodeLocal());
+
+	if (minSeeds.first.size() != minSeeds.second.size() || minSeeds.first.empty())
+		return false;
+
+	//rebase A
+	std::vector<unsigned> referenceLinear(A.n);
+	auto seedA = A.coords[minSeeds.first[0]];
+	for (int i = 0; i < A.n; ++i) {
+		referenceLinear[i] = toLinear(A.coords[i] - seedA);
+	}
+
+	if (minSeeds.first.size() > 1) { //quicker seed-heuristic rotation test
+
+		//get linear A seeds and B seeds
+		std::vector<unsigned> referenceLinearSeeds(minSeeds.first.size());
+		std::vector<Pos> comparatorSeeds(minSeeds.second.size());
+
+		for (int i = 0; i < minSeeds.first.size(); ++i) {
+			referenceLinearSeeds[i] = referenceLinear[minSeeds.first[i]];
+			comparatorSeeds[i] = B.coords[minSeeds.second[i]];
+		}
+
+		unsigned n = minSeeds.second.size();
+		return fullCompareRotateSeeds(referenceLinearSeeds, {n, comparatorSeeds});
+	}
+
+	//otherwise full rotation test
+	Tet comparator = B;
+	std::vector<unsigned> seedsB = minSeeds.second;
+	std::vector<unsigned> comparatorLinear(comparator.n);
+
+	for (int i = 0; i < seedsB.size(); ++i) {
+		auto seed = comparator.coords[seedsB[i]];
+
+		//rebase comparator
+		for (int j = 0; j < comparator.n; ++j) {
+			comparator.coords[j] = comparator.coords[j] - seed;
+		}
+
+		//rotate, linearise and compare
+		//spin on top
+		for (int j = 0; j < 4; ++j) {
+			comparator.rotY();
+			toLinearVector(comparator, comparatorLinear);
+			if (compareLinearCoordinates(referenceLinear, comparatorLinear))
+				return true;
+		}
+
+		//spin on back
+		comparator.rotX();
+		for (int j = 0; j < 4; ++j) {
+			comparator.rotZ();
+			toLinearVector(comparator, comparatorLinear);
+			if (compareLinearCoordinates(referenceLinear, comparatorLinear))
+				return true;
+		}
+
+		//spin on right
+		comparator.rotY();
+		for (int j = 0; j < 4; ++j) {
+			comparator.rotX();
+			toLinearVector(comparator, comparatorLinear);
+			if (compareLinearCoordinates(referenceLinear, comparatorLinear))
+				return true;
+		}
+
+		//spin on front
+		comparator.rotY();
+		for (int j = 0; j < 4; ++j) {
+			comparator.rotZ();
+			toLinearVector(comparator, comparatorLinear);
+			if (compareLinearCoordinates(referenceLinear, comparatorLinear))
+				return true;
+		}
+
+		//spin on left
+		comparator.rotY();
+		for (int j = 0; j < 4; ++j) {
+			comparator.rotX();
+			toLinearVector(comparator, comparatorLinear);
+			if (compareLinearCoordinates(referenceLinear, comparatorLinear))
+				return true;
+		}
+
+		//spin on bottom
+		comparator.rotY();
+		comparator.rotX();
+		for (int j = 0; j < 4; ++j) {
+			comparator.rotY();
+			toLinearVector(comparator, comparatorLinear);
+			if (compareLinearCoordinates(referenceLinear, comparatorLinear))
+				return true;
+		}
+	}
+
+	return false;
+}
+
 bool compareBounds(const Tet& a, const Tet& b) {
 	auto ar = a.getBounds();
 	auto br = b.getBounds();
@@ -233,6 +258,7 @@ std::vector<Tet> generate(unsigned int i) {
 	int boundsSkip = 0;
 	int popSkip = 0;
 	int full = 0;
+	int fullFalse = 0;
 
 	int prev = 0;
 	int k = 0;
@@ -290,18 +316,19 @@ std::vector<Tet> generate(unsigned int i) {
 				full++;
 				if (fullCompare(u, build)) {
 					newShape = false;
+					fullFalse++;
 
-					if (i == 9 && unique.size() > 5000) {
-						for (const auto& c: build.coords) {
-							std::cout << c.x << " " << c.y << " " << c.z << std::endl;
-						}
-						std::cout << std::endl;
-						for (const auto& c: u.coords) {
-							std::cout << c.x << " " << c.y << " " << c.z << std::endl;
-						}
-
-						std::exit(1);
-					}
+//					if (i == 9 && unique.size() > 5000) {
+//						for (const auto& c: build.coords) {
+//							std::cout << c.x << " " << c.y << " " << c.z << std::endl;
+//						}
+//						std::cout << std::endl;
+//						for (const auto& c: u.coords) {
+//							std::cout << c.x << " " << c.y << " " << c.z << std::endl;
+//						}
+//
+//						std::exit(1);
+//					}
 					break;
 				}
 			}
@@ -318,7 +345,8 @@ std::vector<Tet> generate(unsigned int i) {
 	std::cout << unique.size() << " unique shapes\n";
 	std::cout << "Full comparisons skipped: " << skipped << "\n";
 	std::cout
-			<< "Full comparisons computed: " << full
+			<< "Full comparisons computed: " << full << "\n"
+			<< "Full comparisons false: " << (float) fullFalse / full * 100
 			<< "\ninverse: " << (float) inverseSkip / skipped * 100
 			<< "\nlocal: " << (float) localSkip / skipped * 100
 			<< "\npopulation: " << (float) popSkip / skipped * 100
