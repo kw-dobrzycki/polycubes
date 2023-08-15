@@ -368,15 +368,6 @@ unsigned getHighestLocalType(const Tet& t) {
 	return x[m];
 }
 
-std::pair<unsigned, unsigned> getSelfParity(const Tet& t){
-	const auto& x = t.encodeSelf();
-	unsigned i[]{0, 0};
-	for (int k = 0; k < t.n; ++k) {
-		i[x[k] % 2]++;
-	}
-	return {i[0], i[1]};
-}
-
 struct CachedUnique {
 	Tet unique;
 	std::vector<LocalGroup::type> code;
@@ -390,14 +381,7 @@ std::vector<Tet> generate(unsigned int i) {
 
 	auto previous = generate(i - 1);
 
-//	auto* cache = new std::vector<CachedUnique>[1000000]();
-	auto* cache = new std::vector<CachedUnique>*[i+1];
-	for (int j = 0; j < i+1; ++j) {
-		cache[j] = new std::vector<CachedUnique>[i+1]();
-	}
-
-	cache[0][1].push_back({{0, {}}, {}, {}});
-
+	auto* cache = new std::vector<CachedUnique>[1000000]();
 	long long unsigned cached = 0;
 
 	long long int skipped = 0;
@@ -428,8 +412,8 @@ std::vector<Tet> generate(unsigned int i) {
 
 			bool newShape = true;
 
-			auto selfParity = getSelfParity(build);
-			auto& unique = cache[selfParity.first][selfParity.second];
+			auto highestType = getHighestLocalType(build);
+			auto& unique = cache[highestType];
 
 			for (int j = 0; j < unique.size(); ++j) {
 				const auto& u = unique[j].unique;
@@ -492,15 +476,12 @@ std::vector<Tet> generate(unsigned int i) {
 			<< std::endl;
 
 	std::vector<Tet> allUnique;
-	for (int j = 0; j < i+1; ++j) {
-		for (int l = 0; l < i+1; ++l) {
-			for (int m = 0; m < cache[j][l].size(); ++m) {
-				allUnique.push_back(cache[j][l][m].unique);
-			}
+	for (int j = 0; j < 1000000; ++j) {
+		for (int l = 0; l < cache[j].size(); ++l) {
+			allUnique.push_back(cache[j][l].unique);
 		}
-		delete[] cache[j];
+		cache[j].clear();
 	}
-	delete[] cache;
 
 	return allUnique;
 
