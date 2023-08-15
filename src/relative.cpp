@@ -284,11 +284,7 @@ bool fullCompareRotateSeeds(const std::vector<unsigned>& referenceLinear,
 }
 
 bool fullCompare(const Tet& A, const Tet& B) {
-	/* translation equivalence: relative coordinates occupy the same space
-	 * 1) Find shared piece types which occur least commonly (seeds)
-	 * 2) Set A on a seed. Set B on every seed, each time:
-	 * 3) Rotate B, recalculate linear coordinates and compare
-	 */
+	/* translation equivalence: relative coordinates occupy the same space*/
 	auto seeds = getRareSeeds(A.encodeLocal(), B.encodeLocal());
 	const auto& rare1 = seeds.first;
 	const auto& rare2 = seeds.second;
@@ -325,79 +321,7 @@ bool fullCompare(const Tet& A, const Tet& B) {
 		referenceLinear[i] = toLinear(A.coords[i] - seedA);
 	}
 
-	auto a = fullCompareRotateSeeds(referenceLinear, referenceLinearSeeds, B, rebaseB, compareB);
-	return a;
-/*
-	//otherwise full rotation test
-	Tet comparator = B;
-	std::vector<unsigned> seedsB = rare1.second;
-	std::vector<unsigned> comparatorLinear(comparator.n);
-
-	for (int i = 0; i < seedsB.size(); ++i) {
-		auto seed = comparator.coords[seedsB[i]];
-
-		//rebase comparator
-		for (int j = 0; j < comparator.n; ++j) {
-			comparator.coords[j] = comparator.coords[j] - seed;
-		}
-
-		//rotate, linearise and compare
-		//spin on top
-		for (int j = 0; j < 4; ++j) {
-			comparator.rotY();
-			toLinearVector(comparator, comparatorLinear);
-			if (compareLinearCoordinates(referenceLinear, comparatorLinear))
-				return true;
-		}
-
-		//spin on back
-		comparator.rotX();
-		for (int j = 0; j < 4; ++j) {
-			comparator.rotZ();
-			toLinearVector(comparator, comparatorLinear);
-			if (compareLinearCoordinates(referenceLinear, comparatorLinear))
-				return true;
-		}
-
-		//spin on right
-		comparator.rotY();
-		for (int j = 0; j < 4; ++j) {
-			comparator.rotX();
-			toLinearVector(comparator, comparatorLinear);
-			if (compareLinearCoordinates(referenceLinear, comparatorLinear))
-				return true;
-		}
-
-		//spin on front
-		comparator.rotY();
-		for (int j = 0; j < 4; ++j) {
-			comparator.rotZ();
-			toLinearVector(comparator, comparatorLinear);
-			if (compareLinearCoordinates(referenceLinear, comparatorLinear))
-				return true;
-		}
-
-		//spin on left
-		comparator.rotY();
-		for (int j = 0; j < 4; ++j) {
-			comparator.rotX();
-			toLinearVector(comparator, comparatorLinear);
-			if (compareLinearCoordinates(referenceLinear, comparatorLinear))
-				return true;
-		}
-
-		//spin on bottom
-		comparator.rotY();
-		comparator.rotX();
-		for (int j = 0; j < 4; ++j) {
-			comparator.rotY();
-			toLinearVector(comparator, comparatorLinear);
-			if (compareLinearCoordinates(referenceLinear, comparatorLinear))
-				return true;
-		}
-	}
-
-	return false;*/
+	return fullCompareRotateSeeds(referenceLinear, referenceLinearSeeds, B, rebaseB, compareB);
 }
 
 bool compareBounds(const Tet& a, const Tet& b) {
@@ -412,15 +336,32 @@ bool compareBounds(const Tet& a, const Tet& b) {
 	return true;
 }
 
+unsigned getHighestType(const Tet& t) {
+	const auto& x = t.encodeLocal();
+	unsigned m = 0;
+	for (int i = 0; i < t.n; ++i) {
+		if (x[i] > x[m]) {
+			m = i;
+		}
+	}
+	return x[m];
+}
+
+struct CachedUnique {
+	Tet unique;
+	std::vector<LocalGroup::type> code;
+	std::vector<LocalGroup::type> complementCode;
+};
+
 std::vector<Tet> generate(unsigned int i) {
 	if (i <= 1) {
 		return std::vector{Tet(i, std::vector<Pos>(1, {0, 0, 0}))};
 	}
 
 	auto previous = generate(i - 1);
-	std::vector<Tet> unique;
-	std::vector<std::vector<LocalGroup::type>> uniqueCode;
-	std::vector<std::vector<LocalGroup::type>> uniqueComplementCode;
+
+	auto* cache = new std::vector<CachedUnique>[1000000]();
+	unsigned cached = 0;
 
 	int skipped = 0;
 	int localSkip = 0;
@@ -430,13 +371,13 @@ std::vector<Tet> generate(unsigned int i) {
 	int full = 0;
 	int fullFalse = 0;
 
-	int prev = 0;
+	unsigned prev = 0;
 	int k = 0;
 	for (auto& p: previous) {
 		if (!(++k % 100)) {
-			std::cout << "n = " << i << ": " << (float) k / previous.size() << " with " << unique.size() - prev
+			std::cout << "n = " << i << ": " << (float) k / previous.size() << " with " << cached - prev
 					  << " new unique shapes" << std::endl;
-			prev = unique.size();
+			prev = cached;
 		}
 
 		auto faces = p.getFreeSpaces();
@@ -450,10 +391,13 @@ std::vector<Tet> generate(unsigned int i) {
 
 			bool newShape = true;
 
+			auto highestType = getHighestType(build);
+			auto& unique = cache[highestType];
+
 			for (int j = 0; j < unique.size(); ++j) {
-				const auto& u = unique[j];
-				const auto& uCode = uniqueCode[j];
-				const auto& uComplementCode = uniqueComplementCode[j];
+				const auto& u = unique[j].unique;
+				const auto& uCode = unique[j].code;
+				const auto& uComplementCode = unique[j].complementCode;
 
 				//filters go here
 
@@ -487,32 +431,19 @@ std::vector<Tet> generate(unsigned int i) {
 				if (fullCompare(u, build)) {
 					newShape = false;
 					fullFalse++;
-
-//					if (i == 9 && unique.size() > 5000) {
-//						for (const auto& c: build.coords) {
-//							std::cout << c.x << " " << c.y << " " << c.z << std::endl;
-//						}
-//						std::cout << std::endl;
-//						for (const auto& c: u.coords) {
-//							std::cout << c.x << " " << c.y << " " << c.z << std::endl;
-//						}
-//
-//						std::exit(1);
-//					}
 					break;
 				}
 			}
 
 			if (newShape) {
-				unique.push_back(build);
-				uniqueCode.push_back(buildCode);
-				uniqueComplementCode.push_back(buildComplementCode);
+				unique.push_back({build, buildCode, buildComplementCode});
+				cached++;
 			}
 		}
 	}
 
 	std::cout << "n = " << i << "\n";
-	std::cout << unique.size() << " unique shapes\n";
+	std::cout << cached << " unique shapes\n";
 	std::cout << "Full comparisons skipped: " << skipped << "\n";
 	std::cout
 			<< "Full comparisons computed: " << full << "\n"
@@ -523,7 +454,15 @@ std::vector<Tet> generate(unsigned int i) {
 			<< "\nbounds: " << (float) boundsSkip / skipped * 100
 			<< std::endl;
 
-	return unique;
+	std::vector<Tet> allUnique;
+	for (int j = 0; j < 1000000; ++j) {
+		for (int l = 0; l < cache[j].size(); ++l) {
+			allUnique.push_back(cache[j][l].unique);
+		}
+		cache[j].clear();
+	}
+
+	return allUnique;
 
 }
 
