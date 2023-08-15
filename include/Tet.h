@@ -32,11 +32,11 @@ struct Tet {
 	Tet(unsigned int n, const std::vector<uint32_t>& pieces, const std::vector<Pos>& coords,
 		const std::vector<int>& neighbours, const std::vector<uint8_t>& population);
 
-	Tet& rotX();
+	Tet& rotX(unsigned i = 1);
 
-	Tet& rotY();
+	Tet& rotY(unsigned i = 1);
 
-	Tet& rotZ();
+	Tet& rotZ(unsigned i = 1);
 
 	std::vector<Pos> getFreeSpaces() const;
 

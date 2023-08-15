@@ -41,7 +41,10 @@ void toLinearVector(const Tet& t, std::vector<unsigned>& dst) {
 	}
 }
 
-std::pair<std::vector<unsigned int>, std::vector<unsigned int>>
+std::pair<
+		std::pair<std::vector<unsigned int>, std::vector<unsigned int>>, //first rarest
+		std::pair<std::vector<unsigned int>, std::vector<unsigned int>>  //second rarest
+>
 getRareSeeds(const std::vector<unsigned int>& A, const std::vector<unsigned int>& B) {
 	thread_local int* countA = new int[43451]();
 	thread_local int* countB = new int[43451]();
@@ -55,23 +58,29 @@ getRareSeeds(const std::vector<unsigned int>& A, const std::vector<unsigned int>
 		indices[items++] = B[i];
 	}
 
-	countA[43450] = A.size() + 1;
-	countB[43450] = A.size() + 1;
+	countA[43450] = std::max(A.size(), B.size()) + 1;
+	countB[43450] = countA[43450];
 
-	unsigned min = 43450;
+	unsigned min1 = 43450;
+	unsigned min2 = min1;
 	for (int i = 0; i < items; ++i) {
 
 		//get argmin
 		if (countA[indices[i]] * countB[indices[i]]) { //if in both
 			auto a = std::min(countA[indices[i]], countB[indices[i]]);
-			auto b = std::min(countA[min], countB[min]);
+			auto b = std::min(countA[min1], countB[min1]);
+			auto c = std::min(countA[min2], countB[min2]);
+
 			if (a < b) {
-				min = indices[i];
+				min2 = min1;
+				min1 = indices[i];
+			} else if (a < c && indices[i] != min1) {
+				min2 = indices[i];
 			}
 		}
 
 		//and if it's the lowest possible, break
-		if (countA[min] == 1 || countB[min] == 1) {
+		if (countA[min2] == 1 || countB[min2] == 1) {
 			break;
 		}
 	}
@@ -83,42 +92,192 @@ getRareSeeds(const std::vector<unsigned int>& A, const std::vector<unsigned int>
 		indices[i] = 0;
 	}
 
-	std::vector<unsigned> a;
-	std::vector<unsigned> b;
+	std::vector<unsigned> a1;
+	std::vector<unsigned> a2;
+	std::vector<unsigned> b1;
+	std::vector<unsigned> b2;
 
 	for (int i = 0; i < A.size(); ++i) {
 		//if element in A belongs to the rarest group
-		if (A[i] == min) {
-			a.push_back(i);
+		if (A[i] == min1) {
+			a1.push_back(i);
 		}
 
-		if (B[i] == min) {
-			b.push_back(i);
+		if (A[i] == min2) {
+			a2.push_back(i);
+		}
+
+		if (B[i] == min1) {
+			b1.push_back(i);
+		}
+
+		if (B[i] == min2) {
+			b2.push_back(i);
 		}
 	}
 
-	return {a, b};
+	return {{a1, b1},
+			{a2, b2}};
 }
 
-bool fullCompareRotateSeeds(const std::vector<unsigned>& referenceLinearSeeds, Tet seedComparator) {
-	//the first seedA is the A seed
+Pos& rotX(Pos& p, unsigned i = 1) {
+	for (int j = 0; j < i; ++j) {
+		auto t = p.z;
+		p.z = -p.y;
+		p.y = t;
+	}
+	return p;
+}
 
-	for (int i = 0; i < seedComparator.n; ++i) { //todo don't need to repeat, only check 1.
+Pos& rotY(Pos& p, unsigned i = 1) {
+	for (int j = 0; j < i; ++j) {
+		auto t = p.x;
+		p.x = -p.z;
+		p.z = t;
+	}
+	return p;
+}
 
-		//rebase B
-		auto seed = seedComparator.coords[i];
-		for (int j = 0; j < seedComparator.n; ++j) {
-			seedComparator.coords[j] = seedComparator.coords[j] - seed;
+Pos& rotZ(Pos& p, unsigned i = 1) {
+	for (int j = 0; j < i; ++j) {
+		auto t = p.y;
+		p.y = -p.x;
+		p.x = t;
+	}
+	return p;
+}
+
+bool markerIsIn(const Pos& marker, const std::vector<unsigned> v) {
+	auto m = toLinear(marker);
+	for (int i = 0; i < v.size(); ++i) {
+		if (v[i] == m) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool fullCompareRotateSeeds(const std::vector<unsigned>& referenceLinear,
+							const std::vector<unsigned>& referenceLinearSeeds,
+							const Tet& B,
+							const std::vector<unsigned>& rebaseB,
+							const std::vector<unsigned>& compareB) {
+
+
+	for (int i = 0; i < rebaseB.size(); ++i) {
+
+		//choose a non-origin piece to test
+		Pos marker = B.coords[compareB[(i + 1) % compareB.size()]] - B.coords[rebaseB[i]];
+
+		std::vector<unsigned> rot1;
+		std::vector<unsigned> rot2;
+
+		//spin on top
+		for (int j = 0; j < 4; ++j) {
+			if (markerIsIn(marker, referenceLinearSeeds)) {
+				rot1.push_back(0);
+				rot2.push_back(j);
+			}
+			rotY(marker);
 		}
 
-		unsigned rot1 = 0; //which face
-		unsigned rot2 = 0; //which rotation of the face
+		//spin on back
+		rotX(marker);
+		for (int j = 0; j < 4; ++j) {
+			if (markerIsIn(marker, referenceLinearSeeds)) {
+				rot1.push_back(1);
+				rot2.push_back(j);
+			}
+			rotZ(marker);
+		}
 
-		//pick non-origin seed to rotate
-		Tet comparator{1, {seedComparator.coords[(i + 1) % seedComparator.n]}};
+		//spin on bottom
+		rotX(marker);
+		for (int j = 0; j < 4; ++j) {
+			if (markerIsIn(marker, referenceLinearSeeds)) {
+				rot1.push_back(5);
+				rot2.push_back(j);
+			}
+			rotY(marker);
+		}
 
+		//spin on front
+		rotX(marker);
+		for (int j = 0; j < 4; ++j) {
+			if (markerIsIn(marker, referenceLinearSeeds)) {
+				rot1.push_back(3);
+				rot2.push_back(j);
+			}
+			rotZ(marker);
+		}
 
+		//spin on right
+		rotX(marker);
+		rotZ(marker);
+		for (int j = 0; j < 4; ++j) {
+			if (markerIsIn(marker, referenceLinearSeeds)) {
+				rot1.push_back(2);
+				rot2.push_back(j);
+			}
+			rotX(marker);
+		}
 
+		//spin on left
+		rotZ(marker);
+		rotZ(marker);
+		for (int j = 0; j < 4; ++j) {
+			if (markerIsIn(marker, referenceLinearSeeds)) {
+				rot1.push_back(4);
+				rot2.push_back(j);
+			}
+			rotX(marker);
+		}
+
+		//now test all of B using potential matches
+		std::vector<unsigned> comparatorLinear(B.n);
+		for (int j = 0; j < rot1.size(); ++j) {
+			Tet comparator = B;
+			//rebase comparator as well
+			auto seed = B.coords[rebaseB[i]];
+			for (int k = 0; k < B.n; ++k) {
+				comparator.coords[k] = comparator.coords[k] - seed;
+			}
+			switch (rot1[j]) {
+				case 0:
+					comparator.rotY(rot2[j]);
+					break;
+				case 1:
+					comparator.rotX();
+					comparator.rotZ(rot2[j]);
+					break;
+				case 2:
+					comparator.rotZ();
+					comparator.rotX(rot2[j]);
+					break;
+				case 3:
+					comparator.rotX();
+					comparator.rotX();
+					comparator.rotX();
+					comparator.rotZ(rot2[j]);
+					break;
+				case 4:
+					comparator.rotZ();
+					comparator.rotZ();
+					comparator.rotZ();
+					comparator.rotX(rot2[j]);
+					break;
+				case 5:
+					comparator.rotX();
+					comparator.rotX();
+					comparator.rotY(rot2[j]);
+					break;
+			}
+
+			toLinearVector(comparator, comparatorLinear);
+			if (compareLinearCoordinates(referenceLinear, comparatorLinear)) {
+				return true;
+			}
+		}
 	}
 
 	return false;
@@ -130,37 +289,48 @@ bool fullCompare(const Tet& A, const Tet& B) {
 	 * 2) Set A on a seed. Set B on every seed, each time:
 	 * 3) Rotate B, recalculate linear coordinates and compare
 	 */
+	auto seeds = getRareSeeds(A.encodeLocal(), B.encodeLocal());
+	const auto& rare1 = seeds.first;
+	const auto& rare2 = seeds.second;
 
-	auto minSeeds = getRareSeeds(A.encodeLocal(), B.encodeLocal());
-
-	if (minSeeds.first.size() != minSeeds.second.size() || minSeeds.first.empty())
+	if (rare1.first.size() != rare1.second.size() ||
+		rare2.first.size() != rare2.second.size() ||
+		rare1.first.empty())
 		return false;
 
-	//rebase A
+	std::vector<unsigned> rebaseB;
+	std::vector<unsigned> compareB;
+
+	auto* rarity = &rare2;
+	if (rare1.first.size() > 1) {
+		rarity = &rare1;
+
+		rebaseB = rare1.second;
+		compareB = rare1.second;
+	} else {
+		rebaseB = {rare1.second[0]};
+		compareB = {rare2.second[0]};
+	}
+
+	//get rebased linear A seeds (rebased on the same rarity that is used to test B)
+	auto seedA = A.coords[rare1.first[0]];
+	std::vector<unsigned> referenceLinearSeeds(rarity->first.size());
+	for (int i = 0; i < rarity->first.size(); ++i) {
+		referenceLinearSeeds[i] = toLinear(A.coords[rarity->first[i]] - seedA);
+	}
+
+	//get rebased linear A
 	std::vector<unsigned> referenceLinear(A.n);
-	auto seedA = A.coords[minSeeds.first[0]];
 	for (int i = 0; i < A.n; ++i) {
 		referenceLinear[i] = toLinear(A.coords[i] - seedA);
 	}
 
-	if (minSeeds.first.size() > 1) { //quicker seed-heuristic rotation test
-
-		//get linear A seeds and B seeds
-		std::vector<unsigned> referenceLinearSeeds(minSeeds.first.size());
-		std::vector<Pos> comparatorSeeds(minSeeds.second.size());
-
-		for (int i = 0; i < minSeeds.first.size(); ++i) {
-			referenceLinearSeeds[i] = referenceLinear[minSeeds.first[i]];
-			comparatorSeeds[i] = B.coords[minSeeds.second[i]];
-		}
-
-		unsigned n = minSeeds.second.size();
-		return fullCompareRotateSeeds(referenceLinearSeeds, {n, comparatorSeeds});
-	}
-
+	auto a = fullCompareRotateSeeds(referenceLinear, referenceLinearSeeds, B, rebaseB, compareB);
+	return a;
+/*
 	//otherwise full rotation test
 	Tet comparator = B;
-	std::vector<unsigned> seedsB = minSeeds.second;
+	std::vector<unsigned> seedsB = rare1.second;
 	std::vector<unsigned> comparatorLinear(comparator.n);
 
 	for (int i = 0; i < seedsB.size(); ++i) {
@@ -227,7 +397,7 @@ bool fullCompare(const Tet& A, const Tet& B) {
 		}
 	}
 
-	return false;
+	return false;*/
 }
 
 bool compareBounds(const Tet& a, const Tet& b) {

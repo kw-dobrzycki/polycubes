@@ -75,29 +75,35 @@ Tet::Tet(unsigned int n, const std::vector<uint32_t>& pieces, const std::vector<
 		  population(population),
 		  neighbours(neighbours) {}
 
-Tet& Tet::rotX() {
+Tet& Tet::rotX(unsigned i) {
 	for (int j = 0; j < n; ++j) {
-		auto t = coords[j].z;
-		coords[j].z = -coords[j].y;
-		coords[j].y = t;
+		for (int k = 0; k < i; ++k) {
+			auto t = coords[j].z;
+			coords[j].z = -coords[j].y;
+			coords[j].y = t;
+		}
 	}
 	return *this;
 }
 
-Tet& Tet::rotY() {
+Tet& Tet::rotY(unsigned i) {
 	for (int j = 0; j < n; ++j) {
-		auto t = coords[j].x;
-		coords[j].x = -coords[j].z;
-		coords[j].z = t;
+		for (int k = 0; k < i; ++k) {
+			auto t = coords[j].x;
+			coords[j].x = -coords[j].z;
+			coords[j].z = t;
+		}
 	}
 	return *this;
 }
 
-Tet& Tet::rotZ() {
+Tet& Tet::rotZ(unsigned i) {
 	for (int j = 0; j < n; ++j) {
-		auto t = coords[j].y;
-		coords[j].y = -coords[j].x;
-		coords[j].x = t;
+		for (int k = 0; k < i; ++k) {
+			auto t = coords[j].y;
+			coords[j].y = -coords[j].x;
+			coords[j].x = t;
+		}
 	}
 	return *this;
 }
@@ -171,8 +177,8 @@ Tet Tet::insert(const Pos& block) const {
 	c_coords.push_back(block);
 
 	//set update the population (naive for now)
-	for (int i = 0; i < n+1; ++i) {
-		for (int k = 0; k < n+1; ++k) {
+	for (int i = 0; i < n + 1; ++i) {
+		for (int k = 0; k < n + 1; ++k) {
 			//get distance
 			Pos dist = c_coords[k] - c_coords[i];
 			auto d = dist.x * dist.x + dist.y * dist.y + dist.z * dist.z;
