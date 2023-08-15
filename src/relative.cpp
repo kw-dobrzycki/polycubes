@@ -285,7 +285,7 @@ bool fullCompareRotateSeeds(const std::vector<unsigned>& referenceLinear,
 
 bool fullCompare(const Tet& A, const Tet& B) {
 	/* translation equivalence: relative coordinates occupy the same space*/
-	auto seeds = getRareSeeds(A.encodeLocal(), B.encodeLocal());
+	auto seeds = getRareSeeds(A.encodeSelf(), B.encodeSelf()); //todo perhaps could use local here
 	const auto& rare1 = seeds.first;
 	const auto& rare2 = seeds.second;
 
@@ -336,7 +336,28 @@ bool compareBounds(const Tet& a, const Tet& b) {
 	return true;
 }
 
-unsigned getHighestType(const Tet& t) {
+unsigned getRarestLocalType(const Tet& t) {
+	thread_local auto* count = new unsigned int[43451]();
+	auto code = t.encodeLocal();
+
+	for (int i = 0; i < t.n; ++i) {
+		count[code[i]]++;
+	}
+
+	unsigned min = 43450;
+	count[min] = t.n + 1;
+
+	for (int i = 0; i < t.n; ++i) {
+		if (count[code[i]] > count[min]) {
+			min = i;
+		}
+		count[code[i]] = 0;
+	}
+
+	return min;
+}
+
+unsigned getHighestLocalType(const Tet& t) {
 	const auto& x = t.encodeLocal();
 	unsigned m = 0;
 	for (int i = 0; i < t.n; ++i) {
@@ -361,18 +382,18 @@ std::vector<Tet> generate(unsigned int i) {
 	auto previous = generate(i - 1);
 
 	auto* cache = new std::vector<CachedUnique>[1000000]();
-	unsigned cached = 0;
+	long long unsigned cached = 0;
 
-	int skipped = 0;
-	int localSkip = 0;
-	int inverseSkip = 0;
-	int boundsSkip = 0;
-	int popSkip = 0;
-	int full = 0;
-	int fullFalse = 0;
+	long long int skipped = 0;
+	long long int localSkip = 0;
+	long long int inverseSkip = 0;
+	long long int boundsSkip = 0;
+	long long int popSkip = 0;
+	long long int full = 0;
+	long long int fullFalse = 0;
 
-	unsigned prev = 0;
-	int k = 0;
+	long long unsigned prev = 0;
+	long long int k = 0;
 	for (auto& p: previous) {
 		if (!(++k % 100)) {
 			std::cout << "n = " << i << ": " << (float) k / previous.size() << " with " << cached - prev
@@ -391,7 +412,7 @@ std::vector<Tet> generate(unsigned int i) {
 
 			bool newShape = true;
 
-			auto highestType = getHighestType(build);
+			auto highestType = getHighestLocalType(build);
 			auto& unique = cache[highestType];
 
 			for (int j = 0; j < unique.size(); ++j) {
@@ -420,11 +441,11 @@ std::vector<Tet> generate(unsigned int i) {
 					continue;
 				}
 
-				if (!compareBounds(u, build)) {
-					skipped++;
-					boundsSkip++;
-					continue;
-				}
+//				if (!compareBounds(u, build)) {
+//					skipped++;
+//					boundsSkip++;
+//					continue;
+//				}
 
 				//if Tet passes, do full compare
 				full++;
