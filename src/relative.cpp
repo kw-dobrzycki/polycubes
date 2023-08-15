@@ -429,15 +429,15 @@ std::vector<Tet> generate(unsigned int i) {
 					continue;
 				}
 
-				if (!compareLocalEncodings(uCode, buildCode)) {
-					skipped++;
-					localSkip++;
-					continue;
-				}
-
 				if (!comparePopulations(u.population, build.population)) {
 					skipped++;
 					popSkip++;
+					continue;
+				}
+
+				if (!compareLocalEncodings(uCode, buildCode)) {
+					skipped++;
+					localSkip++;
 					continue;
 				}
 
@@ -452,6 +452,18 @@ std::vector<Tet> generate(unsigned int i) {
 				if (fullCompare(u, build)) {
 					newShape = false;
 					fullFalse++;
+
+//					for (int l = 0; l < i; ++l) {
+//						std::cout << build.coords[l].x << " " << build.coords[l].y << " " << build.coords[l].z << "\n";
+//					}
+//					std::cout << std::endl;
+//
+//					for (int l = 0; l < i; ++l) {
+//						std::cout << u.coords[l].x << " " << u.coords[l].y << " " << u.coords[l].z << "\n";
+//					}
+//					std::cout << "-----------\n";
+//					if (z++ > 5 && i > 6)
+//						std::exit(1);
 					break;
 				}
 			}
