@@ -109,7 +109,11 @@ Tet& Tet::rotZ(unsigned i) {
 }
 
 Tet Tet::getComplement() const {
-	int ax = 0, ay = 0, az = 0, aX = 0, aY = 0, aZ = 0;
+
+	auto bounds = getBounds();
+	int ax = bounds[0], aX = bounds[1],
+			ay = bounds[2], aY = bounds[3],
+			az = bounds[4], aZ = bounds[5];
 
 	for (int i = 0; i < n; ++i) {
 		ax = std::min(ax, coords[i].x);
@@ -257,6 +261,26 @@ std::vector<unsigned> Tet::encodeSelf() const {
 	return code;
 }
 
+std::vector<uint32_t> Tet::boundEncode() const {
+	unsigned size = 32;
+	auto bounds = getBounds();
+	auto volume = (bounds[1] - bounds[0] + 1) * (bounds[3] - bounds[2] + 1) * (bounds[5] - bounds[4] + 1);
+	auto X = bounds[1] - bounds[0] + 1;
+	auto Z = bounds[5] - bounds[4] + 1;
+	std::vector<uint32_t> bits((volume + size - 1) / size);
+
+	for (int i = 0; i < n; ++i) {
+		//set (x, y, z) as the encoding origin
+		unsigned linear = (coords[i].y - bounds[2]) * X * Z +
+						  (coords[i].z - bounds[4]) * X +
+						  (coords[i].x - bounds[0]);
+		uint32_t& bit = bits[linear / size];
+		bit ^= 0b1 << (size - 1 - linear % size);
+	}
+
+	return bits;
+}
+
 void Tet::print() const {
 	for (int i = 0; i < n; ++i) {
 		for (int j = 0; j < 6; ++j) {
@@ -267,7 +291,7 @@ void Tet::print() const {
 	std::cout << std::endl;
 }
 
-std::array<int, 3> Tet::getBounds() const {
+std::array<int, 6> Tet::getBounds() const {
 	int ax = 0, ay = 0, az = 0, aX = 0, aY = 0, aZ = 0;
 
 	for (int i = 0; i < n; ++i) {
@@ -279,11 +303,5 @@ std::array<int, 3> Tet::getBounds() const {
 		aZ = std::max(aZ, coords[i].z);
 	}
 
-	aX -= ax;
-	aY -= ay;
-	aZ -= az;
-
-	int r[]{aX, aY, aZ};
-	std::sort(r, r + 3);
-	return {r[0], r[1], r[2]};
+	return {ax, aX, ay, aY, az, aZ};
 }

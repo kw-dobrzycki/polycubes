@@ -46,9 +46,11 @@ struct Tet {
 
 	std::vector<unsigned> encodeSelf() const;
 
+	std::vector<uint32_t> boundEncode() const;
+
 	void print() const;
 
-	std::array<int, 3> getBounds() const;
+	std::array<int, 6> getBounds() const;
 
 	Tet getComplement() const;
 };

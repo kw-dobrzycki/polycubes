@@ -324,18 +324,6 @@ bool fullCompare(const Tet& A, const Tet& B) {
 	return fullCompareRotateSeeds(referenceLinear, referenceLinearSeeds, B, rebaseB, compareB);
 }
 
-bool compareBounds(const Tet& a, const Tet& b) {
-	auto ar = a.getBounds();
-	auto br = b.getBounds();
-
-	for (int i = 0; i < 3; ++i) {
-		if (ar[i] != br[i])
-			return false;
-	}
-
-	return true;
-}
-
 unsigned getRarestLocalType(const Tet& t) {
 	thread_local auto* count = new unsigned int[43451]();
 	auto code = t.encodeLocal();
@@ -440,12 +428,6 @@ std::vector<Tet> generate(unsigned int i) {
 					localSkip++;
 					continue;
 				}
-
-//				if (!compareBounds(u, build)) {
-//					skipped++;
-//					boundsSkip++;
-//					continue;
-//				}
 
 				//if Tet passes, do full compare
 				full++;
