@@ -261,21 +261,21 @@ std::vector<unsigned> Tet::encodeSelf() const {
 	return code;
 }
 
-std::vector<uint32_t> Tet::boundEncode() const {
-	unsigned size = 32;
+std::vector<uint64_t> Tet::boundEncode() const {
+	unsigned size = 64;
 	auto bounds = getBounds();
 	auto volume = (bounds[1] - bounds[0] + 1) * (bounds[3] - bounds[2] + 1) * (bounds[5] - bounds[4] + 1);
 	auto X = bounds[1] - bounds[0] + 1;
 	auto Z = bounds[5] - bounds[4] + 1;
-	std::vector<uint32_t> bits((volume + size - 1) / size);
+	std::vector<uint64_t> bits((volume + size - 1) / size);
 
 	for (int i = 0; i < n; ++i) {
 		//set (x, y, z) as the encoding origin
 		unsigned linear = (coords[i].y - bounds[2]) * X * Z +
 						  (coords[i].z - bounds[4]) * X +
 						  (coords[i].x - bounds[0]);
-		uint32_t& bit = bits[linear / size];
-		bit ^= 0b1 << (size - 1 - linear % size);
+		uint64_t& bit = bits[linear / size];
+		bit ^= uint64_t(1) << (size - 1 - linear % size);
 	}
 
 	return bits;

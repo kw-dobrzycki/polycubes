@@ -356,6 +356,62 @@ unsigned getHighestLocalType(const Tet& t) {
 	return x[m];
 }
 
+struct _compare {
+	std::array<int, 6> bounds;
+
+	bool operator()(Pos a, Pos b) {
+		auto X = bounds[1] - bounds[0] + 1;
+		auto Z = bounds[5] - bounds[4] + 1;
+
+		//translate and linearise
+		a = a - Pos{bounds[0], bounds[2], bounds[4]};
+		b = b - Pos{bounds[0], bounds[2], bounds[4]};
+		unsigned la = a.y * X * Z + a.z * X + a.x;
+		unsigned lb = b.y * X * Z + b.z * X + b.x;
+		return la < lb;
+	}
+};
+
+// assumes a.n == b.n
+const Tet& biggerEncoding(const Tet& a, const Tet& b) {
+	//rebase a, b; sort their coordinates by their encoding index, return the bigger
+	auto boundsA = a.getBounds();
+	auto boundsB = b.getBounds();
+	auto seedA = Pos{boundsA[0], boundsA[2], boundsA[4]};
+	auto seedB = Pos{boundsB[0], boundsB[2], boundsB[4]};
+
+	std::vector<Pos> A(a.n);
+	std::vector<Pos> B(b.n);
+	for (int i = 0; i < a.n; ++i) {
+		A[i] = a.coords[i] - seedA;
+		B[i] = b.coords[i] - seedB;
+	}
+
+	std::sort(A.begin(), A.end(), _compare{boundsA});
+	std::sort(B.begin(), B.end(), _compare{boundsB});
+
+	//compare
+	for (int i = 0; i < a.n; ++i) {
+		if (A[i].y < B[i].y)
+			return a;
+		else if (A[i].y > B[i].y)
+			return b;
+
+		if (A[i].z < B[i].z)
+			return a;
+		else if (A[i].z > B[i].z)
+			return b;
+
+		if (A[i].x < B[i].x)
+			return a;
+		else if (A[i].x > B[i].x)
+			return b;
+	}
+
+	//return either
+	return b;
+}
+
 struct CachedUnique {
 	Tet unique;
 	std::vector<LocalGroup::type> code;
