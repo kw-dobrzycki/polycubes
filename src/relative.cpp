@@ -6,6 +6,7 @@
 #include <sstream>
 #include <algorithm>
 #include <map>
+#include <unordered_map>
 #include "relative.h"
 #include "groups.h"
 #include "Tet.h"
@@ -476,18 +477,27 @@ unsigned hashBound(std::array<int, 6> bound) {
 	return hash;
 }
 
+struct CachedUnique {
+	Tet unique;
+	std::vector<LocalGroup::type> code;
+	std::vector<LocalGroup::type> complementCode;
+};
+
 struct CachedBound {
 	bloom_filter filter;
-	std::vector<Tet> store;
+	std::vector<CachedUnique> store;
 	unsigned hashedBound;
-	unsigned long long capacity = 1000;
+	unsigned long long capacity = 100000;
+
+	const double FP = 0.0000000001;
 
 	CachedBound(unsigned hashedBound) : hashedBound(hashedBound) {
 		bloom_parameters param;
 		param.projected_element_count = capacity;
-		param.false_positive_probability = 0.0001;
+		param.false_positive_probability = FP;
 		param.compute_optimal_parameters();
 		filter = bloom_filter(param);
+		store.reserve(capacity);
 	}
 
 	bool contains(const Tet& tet) const {
@@ -496,24 +506,20 @@ struct CachedBound {
 
 	void insert(const Tet& tet) {
 		if (store.size() == capacity) {
+			capacity *= 2;
 			bloom_parameters param;
-			param.projected_element_count = capacity * 2;
-			param.false_positive_probability = 0.000001;
+			param.projected_element_count = capacity;
+			param.false_positive_probability = FP;
 			filter = bloom_filter(param);
 			for (int i = 0; i < store.size(); ++i) {
 				filter.insert(store[i]);
 			}
+			store.reserve(capacity);
 		}
 
 		filter.insert(tet.boundEncode());
-		store.push_back(tet);
+		store.push_back({tet, tet.encodeLocal(), tet.getComplement().encodeLocal()});
 	}
-};
-
-struct CachedUnique {
-	Tet unique;
-	std::vector<LocalGroup::type> code;
-	std::vector<LocalGroup::type> complementCode;
 };
 
 std::vector<Tet> generate(unsigned int i) {
@@ -523,7 +529,7 @@ std::vector<Tet> generate(unsigned int i) {
 
 	auto previous = generate(i - 1);
 
-	std::map<unsigned, CachedBound> cache;
+	std::unordered_map<unsigned, CachedBound> cache;
 
 	long long int skipped = 0;
 	long long int localSkip = 0;
@@ -532,6 +538,8 @@ std::vector<Tet> generate(unsigned int i) {
 	long long int popSkip = 0;
 	long long int full = 0;
 	long long int fullFalse = 0;
+	long long int bloomSeen = 0;
+	long long int bloomUnseen = 0;
 
 	long long unsigned newShapeCount = 0;
 	long long int k = 0;
@@ -553,25 +561,58 @@ std::vector<Tet> generate(unsigned int i) {
 				cache.insert({boundhash, boundhash});
 			}
 
-			auto& cached = cache.at(boundhash);
+			auto& block = cache.at(boundhash);
 
-			if (!cached.contains(max)) {
-				cached.insert({max.n, max.coords});
+			if (!block.contains(max)) {
+				block.insert({max.n, max.coords});
 				newShapeCount++;
+				bloomUnseen++;
+				skipped++;
+
 			} else {
+				bloomSeen++;
+//				continue;
 
 				auto buildCode = build.encodeLocal();
-
 				Tet buildComplement = build.getComplement();
 				auto buildComplementCode = buildComplement.encodeLocal();
 
-				bool newShape = false;
+				bool newShape = true;
 
-				for (int j = 0; j < cached.store.size(); ++j) {
+				for (int j = 0; j < block.store.size(); ++j) {
+					const auto& unique = block.store[j].unique;
+					const auto& uniqueCode = block.store[j].code;
+					const auto& uniqueComplement = block.store[j].complementCode;
 
+					if (uniqueComplement.size() != buildComplementCode.size() ||
+						!compareLocalEncodings(uniqueComplement, buildComplementCode)) {
+						skipped++;
+						inverseSkip++;
+						continue;
+					}
+
+					if (!comparePopulations(unique.population, build.population)) {
+						skipped++;
+						popSkip++;
+						continue;
+					}
+
+					if (!compareLocalEncodings(uniqueCode, buildCode)) {
+						skipped++;
+						localSkip++;
+						continue;
+					}
+
+					full++;
+					if (fullCompare(unique, build)) {
+						newShape = false;
+						fullFalse++;
+						break;
+					}
 				}
 
 				if (newShape) {
+					block.insert({max.n, max.coords});
 					newShapeCount++;
 				}
 			}
@@ -581,23 +622,23 @@ std::vector<Tet> generate(unsigned int i) {
 	std::vector<Tet> allUnique;
 	for (const auto& [bound, c]: cache) {
 		for (int j = 0; j < c.store.size(); ++j) {
-			allUnique.push_back(c.store[j]);
+			allUnique.push_back(c.store[j].unique);
 		}
 	}
 
 	std::cout << "n = " << i << "\n";
-	std::cout <<  allUnique.size() << " unique shapes\n";
+	std::cout << allUnique.size() << " unique shapes\n";
 	std::cout << "Full comparisons skipped: " << skipped << "\n";
 	std::cout
 			<< "Full comparisons computed: " << full << "\n"
-			<< "Full comparisons false: " << (float) fullFalse / full * 100
+			<< "Full comparisons negative: " << (float) fullFalse / full * 100
+			<< "\nbloom seen: " << (float) bloomSeen
+			<< "\nbloom unseen: " << (float) bloomUnseen
 			<< "\ninverse: " << (float) inverseSkip / skipped * 100
 			<< "\nlocal: " << (float) localSkip / skipped * 100
 			<< "\npopulation: " << (float) popSkip / skipped * 100
 			<< "\nbounds: " << (float) boundsSkip / skipped * 100
 			<< std::endl;
-
-
 
 
 	return allUnique;
