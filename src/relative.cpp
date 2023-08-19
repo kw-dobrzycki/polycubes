@@ -5,9 +5,11 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <map>
 #include "relative.h"
 #include "groups.h"
 #include "Tet.h"
+#include "bloom_filter.hpp"
 
 const unsigned* const selfGroupOf{SelfGroup::generateSelfGroups()};
 const unsigned* const localGroupOf{LocalGroup::generateLocalGroups()};
@@ -373,7 +375,7 @@ struct _compare {
 };
 
 // assumes a.n == b.n
-const Tet& biggerEncoding(const Tet& a, const Tet& b) {
+bool biggerBoundEncoding(const Tet& a, const Tet& b) {
 	//rebase a, b; sort their coordinates by their encoding index, return the bigger
 	auto boundsA = a.getBounds();
 	auto boundsB = b.getBounds();
@@ -393,24 +395,120 @@ const Tet& biggerEncoding(const Tet& a, const Tet& b) {
 	//compare
 	for (int i = 0; i < a.n; ++i) {
 		if (A[i].y < B[i].y)
-			return a;
+			return false;
 		else if (A[i].y > B[i].y)
-			return b;
+			return true;
 
 		if (A[i].z < B[i].z)
-			return a;
+			return false;
 		else if (A[i].z > B[i].z)
-			return b;
+			return true;
 
 		if (A[i].x < B[i].x)
-			return a;
+			return false;
 		else if (A[i].x > B[i].x)
-			return b;
+			return true;
 	}
 
 	//return either
-	return b;
+	return true;
 }
+
+Tet getMaxRotation(Tet t) {
+	Tet max = t;
+
+	//spin on top
+	for (int j = 0; j < 4; ++j) {
+		t.rotY();
+		if (biggerBoundEncoding(max, t))
+			max = t;
+	}
+
+	//spin on back
+	t.rotX();
+	for (int j = 0; j < 4; ++j) {
+		t.rotZ();
+		if (biggerBoundEncoding(max, t))
+			max = t;
+	}
+
+	//spin on right
+	t.rotY();
+	for (int j = 0; j < 4; ++j) {
+		t.rotX();
+		if (biggerBoundEncoding(max, t))
+			max = t;
+	}
+
+	//spin on front
+	t.rotY();
+	for (int j = 0; j < 4; ++j) {
+		t.rotZ();
+		if (biggerBoundEncoding(max, t))
+			max = t;
+	}
+
+	//spin on left
+	t.rotY();
+	for (int j = 0; j < 4; ++j) {
+		t.rotX();
+		if (biggerBoundEncoding(max, t))
+			max = t;
+	}
+
+	//spin on bottom
+	t.rotY();
+	t.rotX();
+	for (int j = 0; j < 4; ++j) {
+		t.rotY();
+		if (biggerBoundEncoding(max, t))
+			max = t;
+	}
+
+	return max;
+}
+
+unsigned hashBound(std::array<int, 6> bound) {
+	unsigned hash = 0;
+	hash = hash & ~0xFF0000 | ((bound[1] - bound[0]) & 0xFF) << 16;
+	hash = hash & ~0xFF00 | ((bound[3] - bound[2]) & 0xFF) << 8;
+	hash = hash & ~0xFF | (bound[5] - bound[4]);
+	return hash;
+}
+
+struct CachedBound {
+	bloom_filter filter;
+	std::vector<Tet> store;
+	unsigned hashedBound;
+	unsigned long long capacity = 1000;
+
+	CachedBound(unsigned hashedBound) : hashedBound(hashedBound) {
+		bloom_parameters param;
+		param.projected_element_count = capacity;
+		param.false_positive_probability = 0.0001;
+		param.compute_optimal_parameters();
+		filter = bloom_filter(param);
+	}
+
+	bool contains(const Tet& tet) const {
+		return filter.contains(tet.boundEncode());
+	}
+
+	void insert(const Tet& tet) {
+		if (store.size() == capacity) {
+			bloom_parameters param;
+			param.projected_element_count = capacity * 2;
+			param.false_positive_probability = 0.000001;
+			filter = bloom_filter(param);
+			for (int i = 0; i < store.size(); ++i) {
+				filter.insert(store[i]);
+			}
+		}
+
+		filter.insert(tet.boundEncode());
+		store.push_back(tet);
+	}
+};
 
 struct CachedUnique {
 	Tet unique;
@@ -425,8 +523,7 @@ std::vector<Tet> generate(unsigned int i) {
 
 	auto previous = generate(i - 1);
 
-	auto* cache = new std::vector<CachedUnique>[1000000]();
-	long long unsigned cached = 0;
+	std::map<unsigned, CachedBound> cache;
 
 	long long int skipped = 0;
 	long long int localSkip = 0;
@@ -436,85 +533,60 @@ std::vector<Tet> generate(unsigned int i) {
 	long long int full = 0;
 	long long int fullFalse = 0;
 
-	long long unsigned prev = 0;
+	long long unsigned newShapeCount = 0;
 	long long int k = 0;
 	for (auto& p: previous) {
 		if (!(++k % 100)) {
-			std::cout << "n = " << i << ": " << (float) k / previous.size() << " with " << cached - prev
+			std::cout << "n = " << i << ": " << (float) k / previous.size() << " with " << newShapeCount
 					  << " new unique shapes" << std::endl;
-			prev = cached;
+			newShapeCount = 0;
 		}
 
 		auto faces = p.getFreeSpaces();
 
 		for (auto& f: faces) {
 			Tet build(p.insert(f));
-			auto buildCode = build.encodeLocal();
+			Tet max = getMaxRotation(build);
 
-			Tet buildComplement = build.getComplement();
-			auto buildComplementCode = buildComplement.encodeLocal();
-
-			bool newShape = true;
-
-			auto highestType = getHighestLocalType(build);
-			auto& unique = cache[highestType];
-
-			for (int j = 0; j < unique.size(); ++j) {
-				const auto& u = unique[j].unique;
-				const auto& uCode = unique[j].code;
-				const auto& uComplementCode = unique[j].complementCode;
-
-				//filters go here
-
-				if (uComplementCode.size() != buildComplementCode.size() ||
-					!compareLocalEncodings(uComplementCode, buildComplementCode)) {
-					skipped++;
-					inverseSkip++;
-					continue;
-				}
-
-				if (!comparePopulations(u.population, build.population)) {
-					skipped++;
-					popSkip++;
-					continue;
-				}
-
-				if (!compareLocalEncodings(uCode, buildCode)) {
-					skipped++;
-					localSkip++;
-					continue;
-				}
-
-				//if Tet passes, do full compare
-				full++;
-				if (fullCompare(u, build)) {
-					newShape = false;
-					fullFalse++;
-
-//					for (int l = 0; l < i; ++l) {
-//						std::cout << build.coords[l].x << " " << build.coords[l].y << " " << build.coords[l].z << "\n";
-//					}
-//					std::cout << std::endl;
-//
-//					for (int l = 0; l < i; ++l) {
-//						std::cout << u.coords[l].x << " " << u.coords[l].y << " " << u.coords[l].z << "\n";
-//					}
-//					std::cout << "-----------\n";
-//					if (z++ > 5 && i > 6)
-//						std::exit(1);
-					break;
-				}
+			auto boundhash = hashBound(max.getBounds());
+			if (!cache.contains(boundhash)) {
+				cache.insert({boundhash, boundhash});
 			}
 
-			if (newShape) {
-				unique.push_back({build, buildCode, buildComplementCode});
-				cached++;
+			auto& cached = cache.at(boundhash);
+
+			if (!cached.contains(max)) {
+				cached.insert({max.n, max.coords});
+				newShapeCount++;
+			} else {
+
+				auto buildCode = build.encodeLocal();
+
+				Tet buildComplement = build.getComplement();
+				auto buildComplementCode = buildComplement.encodeLocal();
+
+				bool newShape = false;
+
+				for (int j = 0; j < cached.store.size(); ++j) {
+
+				}
+
+				if (newShape) {
+					newShapeCount++;
+				}
 			}
 		}
 	}
 
+	std::vector<Tet> allUnique;
+	for (const auto& [bound, c]: cache) {
+		for (int j = 0; j < c.store.size(); ++j) {
+			allUnique.push_back(c.store[j]);
+		}
+	}
+
 	std::cout << "n = " << i << "\n";
-	std::cout << cached << " unique shapes\n";
+	std::cout <<  allUnique.size() << " unique shapes\n";
 	std::cout << "Full comparisons skipped: " << skipped << "\n";
 	std::cout
 			<< "Full comparisons computed: " << full << "\n"
@@ -525,13 +597,8 @@ std::vector<Tet> generate(unsigned int i) {
 			<< "\nbounds: " << (float) boundsSkip / skipped * 100
 			<< std::endl;
 
-	std::vector<Tet> allUnique;
-	for (int j = 0; j < 1000000; ++j) {
-		for (int l = 0; l < cache[j].size(); ++l) {
-			allUnique.push_back(cache[j][l].unique);
-		}
-		cache[j].clear();
-	}
+
+
 
 	return allUnique;
 

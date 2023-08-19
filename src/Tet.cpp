@@ -261,13 +261,13 @@ std::vector<unsigned> Tet::encodeSelf() const {
 	return code;
 }
 
-std::vector<uint64_t> Tet::boundEncode() const {
+std::array<uint64_t, 64> Tet::boundEncode() const {
 	unsigned size = 64;
 	auto bounds = getBounds();
 	auto volume = (bounds[1] - bounds[0] + 1) * (bounds[3] - bounds[2] + 1) * (bounds[5] - bounds[4] + 1);
 	auto X = bounds[1] - bounds[0] + 1;
 	auto Z = bounds[5] - bounds[4] + 1;
-	std::vector<uint64_t> bits((volume + size - 1) / size);
+	std::array<uint64_t, 64> bits{};
 
 	for (int i = 0; i < n; ++i) {
 		//set (x, y, z) as the encoding origin

@@ -58,7 +58,7 @@ inline auto compareLocalEncodings = sparseCompare<unsigned, 43450, 20 * 20 * 20>
 
 inline auto comparePopulations = sparseCompare<uint8_t, 27, 20 * 20 * 20>;
 
-const Tet& biggerEncoding(const Tet& a, const Tet& b);
+bool biggerBoundEncoding(const Tet& a, const Tet& b);
 
 /**
  * @return translational and rotational equivalence
