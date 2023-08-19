@@ -46,7 +46,7 @@ struct Tet {
 
 	std::vector<unsigned> encodeSelf() const;
 
-	std::array<uint64_t, 64> boundEncode() const;
+	std::array<uint32_t, 128> boundEncode() const;
 
 	void print() const;
 

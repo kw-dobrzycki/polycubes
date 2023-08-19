@@ -571,7 +571,7 @@ std::vector<Tet> generate(unsigned int i) {
 
 			} else {
 				bloomSeen++;
-//				continue;
+				continue;
 
 				auto buildCode = build.encodeLocal();
 				Tet buildComplement = build.getComplement();
