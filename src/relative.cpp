@@ -626,7 +626,64 @@ std::vector<Tet> generate(unsigned int i) {
 		}
 	}
 
+	auto n = allUnique.size();
+	bool right;
+	switch (i) {
+		case 1:
+			right = "CORRECT";
+		case 2:
+			right = n == 1;
+			break;
+		case 3:
+			right = n == 2;
+			break;
+		case 4:
+			right = n == 8;
+			break;
+		case 5:
+			right = n == 29;
+			break;
+		case 6:
+			right = n == 166;
+			break;
+		case 7:
+			right = n == 1023;
+			break;
+		case 8:
+			right = n == 6922;
+			break;
+		case 9:
+			right = n == 48311;
+			break;
+		case 10:
+			right = n == 346543;
+			break;
+		case 11:
+			right = n == 2522522;
+			break;
+		case 12:
+			right = n == 18598427;
+			break;
+		case 13:
+			right = n == 138462649;
+			break;
+		case 14:
+			right = n == 1039496297;
+			break;
+		case 15:
+			right = n == 7859514470;
+			break;
+		case 16:
+			right = n == 59795121480;
+			break;
+	}
+
+	std::string msg = "INCORRECT";
+	if (right)
+		msg = "CORRECT";
+
 	std::cout << "n = " << i << "\n";
+	std::cout << msg << "\n";
 	std::cout << allUnique.size() << " unique shapes\n";
 	std::cout << "Full comparisons skipped: " << skipped << "\n";
 	std::cout
