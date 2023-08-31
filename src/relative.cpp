@@ -477,48 +477,72 @@ unsigned hashBound(std::array<int, 6> bound) {
 	return hash;
 }
 
-struct CachedUnique {
-	Tet unique;
-	std::vector<LocalGroup::type> code;
-	std::vector<LocalGroup::type> complementCode;
+template<unsigned depth>
+struct NestedHash {
+	std::unordered_map<uint64_t, NestedHash<depth - 1>> map;
+	std::vector<Tet> store;
+
+	bool contains(const Tet& t) {
+		auto x = t.fullEncode();
+		if (x.size() < depth){
+			x.push_back(0);
+		}
+		return lookup(x);
+	}
+
+	bool lookup(const std::vector<uint64_t>& encoding, unsigned bit = 0) {
+
+		if (!map.contains(encoding[bit])) {
+			map.emplace(std::piecewise_construct, std::make_tuple(encoding[bit]), std::make_tuple());
+			return false;
+		}
+		return map[encoding[bit]].lookup(encoding, bit + 1);
+	}
+
+	void insert(const Tet& t){
+		auto x = t.fullEncode();
+		if (x.size() < depth)
+			x.push_back(0);
+		add(x);
+		store.push_back(t);
+	}
+
+	void add(const std::vector<uint64_t>& encoding, unsigned bit = 0){
+		if (!map.contains(encoding[bit])) {
+			map.emplace(std::piecewise_construct, std::make_tuple(encoding[bit]), std::make_tuple());
+		}
+		map[encoding[bit]].add(encoding, bit + 1);
+	}
 };
 
-struct CachedBound {
-	bloom_filter filter;
-	std::vector<CachedUnique> store;
-	unsigned hashedBound;
-	unsigned long long capacity = 100000;
+template<>
+struct NestedHash<0> {
+	std::vector<std::vector<uint64_t>> store;
 
-	const double FP = 0.0000000001;
-
-	CachedBound(unsigned hashedBound) : hashedBound(hashedBound) {
-		bloom_parameters param;
-		param.projected_element_count = capacity;
-		param.false_positive_probability = FP;
-		param.compute_optimal_parameters();
-		filter = bloom_filter(param);
-		store.reserve(capacity);
+	bool contains(const Tet& t){
+		return lookup(t.fullEncode(), 0);
 	}
 
-	bool contains(const Tet& tet) const {
-		return filter.contains(tet.boundEncode());
-	}
-
-	void insert(const Tet& tet) {
-		if (store.size() == capacity) {
-			capacity *= 2;
-			bloom_parameters param;
-			param.projected_element_count = capacity;
-			param.false_positive_probability = FP;
-			filter = bloom_filter(param);
-			for (int i = 0; i < store.size(); ++i) {
-				filter.insert(store[i]);
+	bool lookup(const std::vector<uint64_t>& encoding, unsigned) {
+		for (int i = 0; i < store.size(); ++i) {
+			bool equal = true;
+			for (int j = 0; j < encoding.size(); ++j) {
+				if (store[i][j] != encoding[j]) {
+					equal = false;
+					break;
+				}
 			}
-			store.reserve(capacity);
+			if (equal) return true;
 		}
+		return false;
+	}
 
-		filter.insert(tet.boundEncode());
-		store.push_back({tet, tet.encodeLocal(), tet.getComplement().encodeLocal()});
+	void insert(const Tet& t){
+		add(t.fullEncode(), 0);
+	}
+
+	void add(const std::vector<uint64_t>& encoding, unsigned){
+		store.push_back(encoding);
 	}
 };
 
@@ -529,7 +553,8 @@ std::vector<Tet> generate(unsigned int i) {
 
 	auto previous = generate(i - 1);
 
-	std::unordered_map<unsigned, CachedBound> cache;
+	NestedHash<2> cache;
+	std::vector<Tet> unique;
 
 	long long int skipped = 0;
 	long long int localSkip = 0;
@@ -556,6 +581,12 @@ std::vector<Tet> generate(unsigned int i) {
 			Tet build(p.insert(f));
 			Tet max = getMaxRotation(build);
 
+			if (!cache.contains(max)) {
+				cache.insert(max);
+				unique.push_back(build);
+				newShapeCount++;
+			}
+/*
 			auto boundhash = hashBound(max.getBounds());
 			if (!cache.contains(boundhash)) {
 				cache.insert({boundhash, boundhash});
@@ -615,16 +646,11 @@ std::vector<Tet> generate(unsigned int i) {
 					block.insert({max.n, max.coords});
 					newShapeCount++;
 				}
-			}
+			}*/
 		}
 	}
 
-	std::vector<Tet> allUnique;
-	for (const auto& [bound, c]: cache) {
-		for (int j = 0; j < c.store.size(); ++j) {
-			allUnique.push_back(c.store[j].unique);
-		}
-	}
+	std::vector<Tet> allUnique = unique;
 
 	auto n = allUnique.size();
 	bool right;

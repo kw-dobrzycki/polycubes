@@ -281,6 +281,22 @@ std::array<uint32_t, 128> Tet::boundEncode() const {
 	return bits;
 }
 
+std::vector<uint64_t> Tet::fullEncode() const {
+	std::vector<uint64_t> bits((n * n * n + 64 - 1) / 64);
+
+	auto bounds = getBounds();
+
+	for (int i = 0; i < n; ++i) {
+		unsigned linear = (coords[i].y - bounds[2]) * n * n +
+						  (coords[i].z - bounds[4]) * n +
+						  (coords[i].x - bounds[0]);
+		auto& bit = bits[linear / 64];
+		bit ^= uint64_t(1) << (64 - 1 - linear % 64);
+	}
+
+	return bits;
+}
+
 void Tet::print() const {
 	for (int i = 0; i < n; ++i) {
 		for (int j = 0; j < 6; ++j) {

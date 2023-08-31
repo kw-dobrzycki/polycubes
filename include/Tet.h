@@ -48,6 +48,8 @@ struct Tet {
 
 	std::array<uint32_t, 128> boundEncode() const;
 
+	std::vector<uint64_t> fullEncode() const;
+
 	void print() const;
 
 	std::array<int, 6> getBounds() const;

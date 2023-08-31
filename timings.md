@@ -55,6 +55,7 @@ spintest now copies tets
 | negative | 0.06  | 8.98       |
 
 
+No optim, n=9
 
 time - full checks
 no skips
