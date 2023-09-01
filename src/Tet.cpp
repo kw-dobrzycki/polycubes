@@ -65,8 +65,44 @@ std::vector<Pos> Tet::getFreeSpaces() const {
 
 Tet Tet::insert(const Pos& block) const {
 	auto c = coords;
+	auto s = spaces;
+
 	c.push_back(block);
-	return Tet{n + 1, c};
+
+	//remove newly occupied space
+	for (int i = 0; i < s.size(); ++i) {
+		if (s[i] == block) {
+			s[i] = s.back();
+			s.pop_back();
+			break;
+		}
+	}
+
+	//add spaces around new block
+	for (int i = 0; i < 6; ++i) {
+		bool occupied = false;
+		for (int j = 0; j < n; ++j) {
+			if (block + offsets[i] == coords[j]) {
+				occupied = true;
+				break;
+			}
+		}
+
+		if (!occupied) {
+			bool seen = false;
+			for (int j = 0; j < s.size(); ++j) {
+				if (s[j] == block + offsets[i]) {
+					seen = true;
+					break;
+				}
+			}
+			if (!seen)
+				s.push_back(block + offsets[i]);
+		}
+
+	}
+
+	return Tet{n + 1, c, s};
 }
 
 std::vector<uint64_t> Tet::fullEncode() const {
@@ -100,4 +136,5 @@ std::array<Pos::type, 6> Tet::getBounds() const {
 	return {ax, aX, ay, aY, az, aZ};
 }
 
-Tet::Tet(unsigned int n, const std::vector<Pos>& coords) : n(n), coords(coords) {}
+Tet::Tet(unsigned int n, const std::vector<Pos>& coords, const std::vector<Pos>& spaces)
+		: n(n), coords(coords), spaces(spaces) {}

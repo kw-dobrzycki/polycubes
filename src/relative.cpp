@@ -218,7 +218,14 @@ struct NestedHash<0> {
 
 std::vector<Tet> generate(unsigned int i) {
 	if (i <= 1) {
-		return std::vector{Tet(i, std::vector<Pos>(1, {0, 0, 0}))};
+		return std::vector{Tet(i, {{0, 0, 0}}, {
+				{0,  1,  0},
+				{0,  0,  -1},
+				{1,  0,  0},
+				{0,  0,  1},
+				{-1, 0,  0},
+				{0,  -1, 0}
+		})};
 	}
 
 	auto previous = generate(i - 1);
@@ -245,9 +252,9 @@ std::vector<Tet> generate(unsigned int i) {
 			newShapeCount = 0;
 		}
 
-		auto faces = p.getFreeSpaces();
+		for (int j = 0; j < p.spaces.size(); ++j) {
+			auto& f = p.spaces[j];
 
-		for (auto& f: faces) {
 			Tet build(p.insert(f));
 			Tet max = getMaxRotation(build);
 
@@ -362,25 +369,25 @@ std::vector<std::string> split(const std::string& s, char delimiter) {
 }
 
 std::vector<Tet> read(const std::string_view path) {
-	std::ifstream file(std::string{path});
-	std::string line;
-
+//	std::ifstream file(std::string{path});
+//	std::string line;
+//
 	std::vector<Tet> tets;
-	std::vector<Pos> blocks;
-	std::cout << "reading" << std::endl;
-	while (std::getline(file, line, '\n')) {
-		if (line.empty()) {
-			tets.emplace_back(blocks.size(), blocks);
-			blocks.clear();
-			continue;
-		}
-		auto spaced = split(line, ' ');
-		blocks.push_back({static_cast<Pos::type>(std::stoi(spaced[0])),
-						  static_cast<Pos::type>(std::stoi(spaced[1])),
-						  static_cast<Pos::type>(std::stoi(spaced[2]))
-						 });
-	}
-
-	std::cout << "read " << tets.size() << " shapes";
+//	std::vector<Pos> blocks;
+//	std::cout << "reading" << std::endl;
+//	while (std::getline(file, line, '\n')) {
+//		if (line.empty()) {
+//			tets.emplace_back(blocks.size(), blocks);
+//			blocks.clear();
+//			continue;
+//		}
+//		auto spaced = split(line, ' ');
+//		blocks.push_back({static_cast<Pos::type>(std::stoi(spaced[0])),
+//						  static_cast<Pos::type>(std::stoi(spaced[1])),
+//						  static_cast<Pos::type>(std::stoi(spaced[2]))
+//						 });
+//	}
+//
+//	std::cout << "read " << tets.size() << " shapes";
 	return tets;
 }
