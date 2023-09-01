@@ -3,6 +3,6 @@
 #include "bloom_filter.hpp"
 
 int main() {
-	generate(9);
+	generate(10);
 	return 0;
 }

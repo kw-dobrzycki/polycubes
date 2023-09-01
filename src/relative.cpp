@@ -477,20 +477,32 @@ unsigned hashBound(std::array<int, 6> bound) {
 	return hash;
 }
 
+static unsigned long long collisions = 0;
+
 template<unsigned depth>
 struct NestedHash {
 	std::unordered_map<uint64_t, NestedHash<depth - 1>> map;
-	std::vector<Tet> store;
+	std::vector<std::vector<uint64_t>> store;
 
 	bool contains(const Tet& t) {
 		auto x = t.fullEncode();
-		if (x.size() < depth){
-			x.push_back(0);
-		}
 		return lookup(x);
 	}
 
 	bool lookup(const std::vector<uint64_t>& encoding, unsigned bit = 0) {
+		if (bit == encoding.size()) {
+			for (int i = 0; i < store.size(); ++i) {
+				bool equal = true;
+				for (int j = 0; j < encoding.size(); ++j) {
+					if (store[i][j] != encoding[j]) {
+						equal = false;
+						break;
+					}
+				}
+				if (equal) return true;
+			}
+			return false;
+		}
 
 		if (!map.contains(encoding[bit])) {
 			map.emplace(std::piecewise_construct, std::make_tuple(encoding[bit]), std::make_tuple());
@@ -499,15 +511,18 @@ struct NestedHash {
 		return map[encoding[bit]].lookup(encoding, bit + 1);
 	}
 
-	void insert(const Tet& t){
+	void insert(const Tet& t) {
 		auto x = t.fullEncode();
-		if (x.size() < depth)
-			x.push_back(0);
 		add(x);
-		store.push_back(t);
 	}
 
-	void add(const std::vector<uint64_t>& encoding, unsigned bit = 0){
+	void add(const std::vector<uint64_t>& encoding, unsigned bit = 0) {
+		if (bit == encoding.size()) {
+			if (store.size() > 1)
+				collisions++;
+			store.push_back(encoding);
+		}
+
 		if (!map.contains(encoding[bit])) {
 			map.emplace(std::piecewise_construct, std::make_tuple(encoding[bit]), std::make_tuple());
 		}
@@ -519,7 +534,7 @@ template<>
 struct NestedHash<0> {
 	std::vector<std::vector<uint64_t>> store;
 
-	bool contains(const Tet& t){
+	bool contains(const Tet& t) {
 		return lookup(t.fullEncode(), 0);
 	}
 
@@ -537,11 +552,13 @@ struct NestedHash<0> {
 		return false;
 	}
 
-	void insert(const Tet& t){
+	void insert(const Tet& t) {
 		add(t.fullEncode(), 0);
 	}
 
-	void add(const std::vector<uint64_t>& encoding, unsigned){
+	void add(const std::vector<uint64_t>& encoding, unsigned) {
+		if (store.size() > 1)
+			collisions++;
 		store.push_back(encoding);
 	}
 };
@@ -553,7 +570,7 @@ std::vector<Tet> generate(unsigned int i) {
 
 	auto previous = generate(i - 1);
 
-	NestedHash<2> cache;
+	NestedHash<6> cache;
 	std::vector<Tet> unique;
 
 	long long int skipped = 0;
@@ -586,67 +603,6 @@ std::vector<Tet> generate(unsigned int i) {
 				unique.push_back(build);
 				newShapeCount++;
 			}
-/*
-			auto boundhash = hashBound(max.getBounds());
-			if (!cache.contains(boundhash)) {
-				cache.insert({boundhash, boundhash});
-			}
-
-			auto& block = cache.at(boundhash);
-
-			if (!block.contains(max)) {
-				block.insert({max.n, max.coords});
-				newShapeCount++;
-				bloomUnseen++;
-				skipped++;
-
-			} else {
-				bloomSeen++;
-				continue;
-
-				auto buildCode = build.encodeLocal();
-				Tet buildComplement = build.getComplement();
-				auto buildComplementCode = buildComplement.encodeLocal();
-
-				bool newShape = true;
-
-				for (int j = 0; j < block.store.size(); ++j) {
-					const auto& unique = block.store[j].unique;
-					const auto& uniqueCode = block.store[j].code;
-					const auto& uniqueComplement = block.store[j].complementCode;
-
-					if (uniqueComplement.size() != buildComplementCode.size() ||
-						!compareLocalEncodings(uniqueComplement, buildComplementCode)) {
-						skipped++;
-						inverseSkip++;
-						continue;
-					}
-
-					if (!comparePopulations(unique.population, build.population)) {
-						skipped++;
-						popSkip++;
-						continue;
-					}
-
-					if (!compareLocalEncodings(uniqueCode, buildCode)) {
-						skipped++;
-						localSkip++;
-						continue;
-					}
-
-					full++;
-					if (fullCompare(unique, build)) {
-						newShape = false;
-						fullFalse++;
-						break;
-					}
-				}
-
-				if (newShape) {
-					block.insert({max.n, max.coords});
-					newShapeCount++;
-				}
-			}*/
 		}
 	}
 
@@ -703,6 +659,9 @@ std::vector<Tet> generate(unsigned int i) {
 			right = n == 59795121480;
 			break;
 	}
+
+	std::cout << "Total collisions: " << collisions << std::endl;
+	collisions = 0;
 
 	std::string msg = "INCORRECT";
 	if (right)
