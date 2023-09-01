@@ -477,41 +477,57 @@ unsigned hashBound(std::array<int, 6> bound) {
 	return hash;
 }
 
+static unsigned long long collisions = 0;
+
 template<unsigned depth>
 struct NestedHash {
 	std::unordered_map<uint64_t, NestedHash<depth - 1>> map;
-	std::vector<Tet> store;
+	std::vector<std::vector<uint64_t>> store;
 
 	bool contains(const Tet& t) {
 		auto x = t.fullEncode();
-		if (x.size() < depth){
-			x.push_back(0);
-		}
 		return lookup(x);
 	}
 
 	bool lookup(const std::vector<uint64_t>& encoding, unsigned bit = 0) {
-
 		if (!map.contains(encoding[bit])) {
 			map.emplace(std::piecewise_construct, std::make_tuple(encoding[bit]), std::make_tuple());
 			return false;
 		}
-		return map[encoding[bit]].lookup(encoding, bit + 1);
+
+		if (bit == encoding.size()) { //check at this height
+			for (int i = 0; i < store.size(); ++i) {
+				bool equal = true;
+				for (int j = 0; j < encoding.size(); ++j) {
+					if (store[i][j] != encoding[j]) {
+						equal = false;
+						break;
+					}
+				}
+				if (equal) return true;
+			}
+			return false;
+		} else
+			return map[encoding[bit]].lookup(encoding, bit + 1);
 	}
 
-	void insert(const Tet& t){
+	void insert(const Tet& t) {
 		auto x = t.fullEncode();
-		if (x.size() < depth)
-			x.push_back(0);
 		add(x);
-		store.push_back(t);
 	}
 
-	void add(const std::vector<uint64_t>& encoding, unsigned bit = 0){
+	void add(const std::vector<uint64_t>& encoding, unsigned bit = 0) {
 		if (!map.contains(encoding[bit])) {
 			map.emplace(std::piecewise_construct, std::make_tuple(encoding[bit]), std::make_tuple());
 		}
-		map[encoding[bit]].add(encoding, bit + 1);
+		if (bit == encoding.size()) {
+			if (store.size() > 1) {
+				collisions++;
+			}
+			store.push_back(encoding);
+		} else {
+			map[encoding[bit]].add(encoding, bit + 1);
+		}
 	}
 };
 
@@ -519,7 +535,7 @@ template<>
 struct NestedHash<0> {
 	std::vector<std::vector<uint64_t>> store;
 
-	bool contains(const Tet& t){
+	bool contains(const Tet& t) {
 		return lookup(t.fullEncode(), 0);
 	}
 
@@ -537,11 +553,14 @@ struct NestedHash<0> {
 		return false;
 	}
 
-	void insert(const Tet& t){
+	void insert(const Tet& t) {
 		add(t.fullEncode(), 0);
 	}
 
-	void add(const std::vector<uint64_t>& encoding, unsigned){
+	void add(const std::vector<uint64_t>& encoding, unsigned) {
+		if (store.size() > 1) {
+			collisions++;
+		}
 		store.push_back(encoding);
 	}
 };
@@ -553,7 +572,7 @@ std::vector<Tet> generate(unsigned int i) {
 
 	auto previous = generate(i - 1);
 
-	NestedHash<2> cache;
+	NestedHash<20> cache;
 	std::vector<Tet> unique;
 
 	long long int skipped = 0;
@@ -703,6 +722,9 @@ std::vector<Tet> generate(unsigned int i) {
 			right = n == 59795121480;
 			break;
 	}
+
+	std::cout << "Total collisions: " << collisions << std::endl;
+	collisions = 0;
 
 	std::string msg = "INCORRECT";
 	if (right)
