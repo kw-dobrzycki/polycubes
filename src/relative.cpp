@@ -504,7 +504,7 @@ struct NestedHash {
 			return false;
 		}
 
-		if (!map.contains(encoding[bit])) {
+		if (map.count(encoding[bit]) <= 0) {
 			map.emplace(std::piecewise_construct, std::make_tuple(encoding[bit]), std::make_tuple());
 			return false;
 		}
@@ -523,7 +523,7 @@ struct NestedHash {
 			store.push_back(encoding);
 		}
 
-		if (!map.contains(encoding[bit])) {
+		if (map.count(encoding[bit]) <= 0) {
 			map.emplace(std::piecewise_construct, std::make_tuple(encoding[bit]), std::make_tuple());
 		}
 		map[encoding[bit]].add(encoding, bit + 1);

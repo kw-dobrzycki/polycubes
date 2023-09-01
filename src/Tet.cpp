@@ -153,7 +153,7 @@ std::vector<Pos> Tet::getFreeSpaces() const {
 		for (int j = 0; j < 6; ++j) {
 			if (!neighbours[i * 6 + j]) {
 				Pos space = coords[i] + offsets[j];
-				bool seen = unique.contains(space.y * n * n + space.z * n + space.x);
+				bool seen = unique.count(space.y * n * n + space.z * n + space.x) > 0;
 				if (!seen) {
 					unique.insert(seen);
 					spaces.push_back(space);
