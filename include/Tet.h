@@ -6,31 +6,16 @@
 #define TETRIS_TET_H
 
 #include "groups.h"
-#include <algorithm>
-#include <sstream>
-#include <fstream>
-#include <iostream>
-#include <array>
-#include <set>
 #include <vector>
+#include <array>
 #include "poly.h"
 
 struct Tet {
 
 	unsigned int n;
-
-	std::vector<uint32_t> pieces;
 	std::vector<Pos> coords;
-	std::vector<int> neighbours;
-	std::vector<uint8_t> population;
 
-	Tet(unsigned int n, const std::vector<Pos>& coordinates);
-
-	/**
-	 * DOES NOT MAINTAIN CONSISTENCY
-	 */
-	Tet(unsigned int n, const std::vector<uint32_t>& pieces, const std::vector<Pos>& coords,
-		const std::vector<int>& neighbours, const std::vector<uint8_t>& population);
+	Tet(unsigned int n, const std::vector<Pos>& coords);
 
 	Tet& rotX(unsigned i = 1);
 
@@ -42,19 +27,9 @@ struct Tet {
 
 	Tet insert(const Pos& block) const;
 
-	std::vector<unsigned> encodeLocal() const;
-
-	std::vector<unsigned> encodeSelf() const;
-
-	std::array<uint32_t, 128> boundEncode() const;
-
 	std::vector<uint64_t> fullEncode() const;
 
-	void print() const;
-
-	std::array<int, 6> getBounds() const;
-
-	Tet getComplement() const;
+	std::array<Pos::type, 6> getBounds() const;
 };
 
 

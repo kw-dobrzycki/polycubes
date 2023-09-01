@@ -1,8 +1,9 @@
-#include <iostream>
 #include "relative.h"
-#include "bloom_filter.hpp"
 
 int main() {
-	generate(10);
+	constexpr auto a = sizeof(Pos);
+	constexpr uint8_t n = 11;
+	static_assert(n <= 1 << (Pos::width - 1));
+	generate(n);
 	return 0;
 }
