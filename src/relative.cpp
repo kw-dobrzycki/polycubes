@@ -11,6 +11,7 @@
 #include "groups.h"
 #include "Tet.h"
 #include <omp.h>
+#include <list>
 
 const Pos offsets[]{
 		{0,  1,  0},
@@ -238,19 +239,25 @@ std::vector<Tet> generate(unsigned int i) {
 	long long unsigned newShapeCount = 0;
 	long long int counter = 0;
 
-#pragma omp parallel for default(none) shared(i, counter, cache, unique, previous, newShapeCount, std::cout)
+	std::vector<decltype(cache)> thread_caches(numThreads);
+	std::vector<decltype(unique)> thread_uniques(numThreads);
+
+	std::cout << numThreads << std::endl;
+
+#pragma omp parallel for default(none) shared(i, thread_caches, thread_uniques, counter, cache, unique, previous, newShapeCount, std::cout)
 	for (int j = 0; j < previous.size(); ++j) {
 		const auto& p = previous[j];
+
+		auto& thread_cache = thread_caches[omp_get_thread_num()];
+		auto& thread_unique = thread_uniques[omp_get_thread_num()];
+
 #pragma omp atomic update
 		counter++;
-		if (!(counter % 100)) {
+		if (!(counter % ((previous.size() + 10 - 1) / 10))) {
 			std::cout << "n = " << i << ": " << (float) counter / previous.size() << " with " << newShapeCount
 					  << " new unique shapes" << std::endl;
 			newShapeCount = 0;
 		}
-
-		decltype(cache) localCache;
-		decltype(unique) localUnique;
 
 		for (int k = 0; k < p.spaces.size(); ++k) {
 			auto& f = p.spaces[k];
@@ -258,23 +265,26 @@ std::vector<Tet> generate(unsigned int i) {
 			Tet build(p.insert(f));
 			Tet max = getMaxRotation(build);
 
-			if (!localCache.contains(max)) {
-				localCache.insert(max);
-				localUnique.push_back(max);
-			}
-		}
-
-#pragma omp critical
-		{
-			for (const auto& t: localUnique) {
-				if (!cache.contains(t)) {
-					cache.insert(t);
-					unique.push_back(t);
-					newShapeCount++;
-				}
+			if (!thread_cache.contains(max)) {
+				thread_cache.insert(max);
+				thread_unique.push_back(max);
 			}
 		}
 	}
+
+	unsigned long duplicates = 0;
+
+	for (int j = 0; j < thread_uniques.size(); ++j) {
+		for (const auto& t: thread_uniques[j]) {
+			if (!cache.contains(t)) {
+				cache.insert(t);
+				unique.push_back(t);
+				newShapeCount++;
+			} else duplicates++;
+		}
+	}
+
+	std::cout << "purged " << duplicates << " duplicates" << std::endl;
 
 	auto n = unique.size();
 	bool right;
@@ -333,7 +343,7 @@ std::vector<Tet> generate(unsigned int i) {
 	if (right)
 		msg = "CORRECT";
 
-	std::cout << "n = " << i << "\n";
+	std::cout << "n = " << i << ": " << unique.size() << " unique shapes\n";
 	std::cout << msg << "\n";
 
 	return unique;
