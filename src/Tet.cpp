@@ -12,6 +12,13 @@ Tet& Tet::rotX(unsigned i) {
 			coords[j].y = t;
 		}
 	}
+	for (int j = 0; j < spaces.size(); ++j){
+		for (int k = 0; k < i; ++k){
+			Pos::type t = spaces[j].z;
+			spaces[j].z = -spaces[j].y;
+			spaces[j].y = t;
+		}
+	}
 	return *this;
 }
 
@@ -23,6 +30,13 @@ Tet& Tet::rotY(unsigned i) {
 			coords[j].z = t;
 		}
 	}
+	for (int j = 0; j < spaces.size(); ++j){
+		for (int k = 0; k < i; ++k){
+			Pos::type t = spaces[j].x;
+			spaces[j].x = -spaces[j].z;
+			spaces[j].z = t;
+		}
+	}
 	return *this;
 }
 
@@ -32,6 +46,13 @@ Tet& Tet::rotZ(unsigned i) {
 			Pos::type t = coords[j].y;
 			coords[j].y = -coords[j].x;
 			coords[j].x = t;
+		}
+	}
+	for (int j = 0; j < spaces.size(); ++j){
+		for (int k = 0; k < i; ++k){
+			Pos::type t = spaces[j].y;
+			spaces[j].y = -spaces[j].x;
+			spaces[j].x = t;
 		}
 	}
 	return *this;

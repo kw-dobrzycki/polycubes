@@ -10,6 +10,7 @@
 #include "relative.h"
 #include "groups.h"
 #include "Tet.h"
+#include <omp.h>
 
 const Pos offsets[]{
 		{0,  1,  0},
@@ -20,7 +21,7 @@ const Pos offsets[]{
 		{0,  -1, 0},
 };
 
-struct _compare {
+struct compare {
 	std::array<Pos::type, 6> bounds;
 
 	bool operator()(Pos a, Pos b) {
@@ -51,8 +52,8 @@ bool biggerBoundEncoding(const Tet& a, const Tet& b) {
 		B[i] = b.coords[i] - seedB;
 	}
 
-	std::sort(A.begin(), A.end(), _compare{boundsA});
-	std::sort(B.begin(), B.end(), _compare{boundsB});
+	std::sort(A.begin(), A.end(), compare{boundsA});
+	std::sort(B.begin(), B.end(), compare{boundsB});
 
 	//compare
 	for (int i = 0; i < a.n; ++i) {
@@ -174,6 +175,7 @@ struct NestedHash {
 			if (store.size() > 1)
 				collisions++;
 			store.push_back(encoding);
+			return;
 		}
 
 		if (map.count(encoding[bit]) <= 0) {
@@ -228,40 +230,48 @@ std::vector<Tet> generate(unsigned int i) {
 		})};
 	}
 
-	auto previous = generate(i - 1);
+	const auto previous = generate(i - 1);
 
 	NestedHash<6> cache;
 	std::vector<Tet> unique;
 
-	long long int skipped = 0;
-	long long int localSkip = 0;
-	long long int inverseSkip = 0;
-	long long int boundsSkip = 0;
-	long long int popSkip = 0;
-	long long int full = 0;
-	long long int fullFalse = 0;
-	long long int bloomSeen = 0;
-	long long int bloomUnseen = 0;
-
 	long long unsigned newShapeCount = 0;
-	long long int k = 0;
-	for (auto& p: previous) {
-		if (!(++k % 100)) {
-			std::cout << "n = " << i << ": " << (float) k / previous.size() << " with " << newShapeCount
+	long long int counter = 0;
+
+#pragma omp parallel for default(none) shared(i, counter, cache, unique, previous, newShapeCount, std::cout)
+	for (int j = 0; j < previous.size(); ++j) {
+		const auto& p = previous[j];
+#pragma omp atomic update
+		counter++;
+		if (!(counter % 100)) {
+			std::cout << "n = " << i << ": " << (float) counter / previous.size() << " with " << newShapeCount
 					  << " new unique shapes" << std::endl;
 			newShapeCount = 0;
 		}
 
-		for (int j = 0; j < p.spaces.size(); ++j) {
-			auto& f = p.spaces[j];
+		decltype(cache) localCache;
+		decltype(unique) localUnique;
+
+		for (int k = 0; k < p.spaces.size(); ++k) {
+			auto& f = p.spaces[k];
 
 			Tet build(p.insert(f));
 			Tet max = getMaxRotation(build);
 
-			if (!cache.contains(max)) {
-				cache.insert(max);
-				unique.push_back(build);
-				newShapeCount++;
+			if (!localCache.contains(max)) {
+				localCache.insert(max);
+				localUnique.push_back(max);
+			}
+		}
+
+#pragma omp critical
+		{
+			for (const auto& t: localUnique) {
+				if (!cache.contains(t)) {
+					cache.insert(t);
+					unique.push_back(t);
+					newShapeCount++;
+				}
 			}
 		}
 	}
@@ -269,8 +279,6 @@ std::vector<Tet> generate(unsigned int i) {
 	auto n = unique.size();
 	bool right;
 	switch (i) {
-		case 1:
-			right = "CORRECT";
 		case 2:
 			right = n == 1;
 			break;
@@ -327,19 +335,6 @@ std::vector<Tet> generate(unsigned int i) {
 
 	std::cout << "n = " << i << "\n";
 	std::cout << msg << "\n";
-	std::cout << unique.size() << " unique shapes\n";
-	std::cout << "Full comparisons skipped: " << skipped << "\n";
-	std::cout
-			<< "Full comparisons computed: " << full << "\n"
-			<< "Full comparisons negative: " << (float) fullFalse / full * 100
-			<< "\nbloom seen: " << (float) bloomSeen
-			<< "\nbloom unseen: " << (float) bloomUnseen
-			<< "\ninverse: " << (float) inverseSkip / skipped * 100
-			<< "\nlocal: " << (float) localSkip / skipped * 100
-			<< "\npopulation: " << (float) popSkip / skipped * 100
-			<< "\nbounds: " << (float) boundsSkip / skipped * 100
-			<< std::endl;
-
 
 	return unique;
 
