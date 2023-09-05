@@ -133,11 +133,35 @@ Tet getMaxRotation(Tet t) {
 }
 
 static unsigned long long collisions = 0;
+static unsigned long long tables = 0;
+static unsigned long long items = 0;
 
 template<unsigned depth>
 struct NestedHash {
 	std::unordered_map<uint64_t, NestedHash<depth - 1>> map;
 	std::vector<std::vector<uint64_t>> store;
+
+	inline static uint64_t loadhi = 0;
+	inline static uint64_t count = 0;
+
+	static void print() {
+		std::cout << "Depth " << depth << " highest load " << loadhi << " count " << count << std::endl;
+		NestedHash<depth - 1>::print();
+	}
+
+	NestedHash() {
+		tables++;
+		count++;
+	}
+
+	static void reset() {
+		loadhi = 0;
+		count = 0;
+		tables = 0;
+		items = 0;
+		collisions = 0;
+		NestedHash<depth - 1>::reset();
+	}
 
 	bool contains(const Tet& t) {
 		auto x = t.fullEncode();
@@ -159,16 +183,16 @@ struct NestedHash {
 			return false;
 		}
 
-		if (map.count(encoding[bit]) <= 0) {
-			map.emplace(std::piecewise_construct, std::make_tuple(encoding[bit]), std::make_tuple());
+		if (map.count(encoding[bit]) <= 0)
 			return false;
-		}
+
 		return map[encoding[bit]].lookup(encoding, bit + 1);
 	}
 
 	void insert(const Tet& t) {
 		auto x = t.fullEncode();
 		add(x);
+		items++;
 	}
 
 	void add(const std::vector<uint64_t>& encoding, unsigned bit = 0) {
@@ -176,6 +200,8 @@ struct NestedHash {
 			if (store.size() > 1)
 				collisions++;
 			store.push_back(encoding);
+			if (store.size() > loadhi)
+				loadhi = store.size();
 			return;
 		}
 
@@ -189,6 +215,26 @@ struct NestedHash {
 template<>
 struct NestedHash<0> {
 	std::vector<std::vector<uint64_t>> store;
+
+	inline static uint64_t loadhi = 0;
+	inline static uint64_t count = 0;
+
+	static void print() {
+		std::cout << "Depth " << 0 << " highest load " << loadhi << " count " << count << std::endl;
+	}
+
+	NestedHash() {
+		tables++;
+		count++;
+	}
+
+	static void reset() {
+		loadhi = 0;
+		count = 0;
+		tables = 0;
+		items = 0;
+		collisions = 0;
+	}
 
 	bool contains(const Tet& t) {
 		return lookup(t.fullEncode(), 0);
@@ -216,6 +262,8 @@ struct NestedHash<0> {
 		if (store.size() > 1)
 			collisions++;
 		store.push_back(encoding);
+		if (store.size() > loadhi)
+			loadhi = store.size();
 	}
 };
 
@@ -233,18 +281,15 @@ std::vector<Tet> generate(unsigned int i) {
 
 	const auto previous = generate(i - 1);
 
-	NestedHash<6> cache;
-	std::vector<Tet> unique;
+	constexpr int depth = 2;
 
 	long long unsigned newShapeCount = 0;
 	long long int counter = 0;
 
-	std::vector<decltype(cache)> thread_caches(numThreads);
-	std::vector<decltype(unique)> thread_uniques(numThreads);
+	std::vector<NestedHash<1>> thread_caches(numThreads);
+	std::vector<std::vector<Tet>> thread_uniques(numThreads);
 
-	std::cout << numThreads << std::endl;
-
-#pragma omp parallel for default(none) shared(i, thread_caches, thread_uniques, counter, cache, unique, previous, newShapeCount, std::cout)
+#pragma omp parallel for default(none) shared(i, thread_caches, thread_uniques, counter, previous, newShapeCount, std::cout)
 	for (int j = 0; j < previous.size(); ++j) {
 		const auto& p = previous[j];
 
@@ -271,6 +316,13 @@ std::vector<Tet> generate(unsigned int i) {
 			}
 		}
 	}
+	NestedHash<depth>::reset();
+
+	NestedHash<depth> cache;
+	std::vector<Tet> unique;
+
+	std::cout << "Merging results...\n";
+
 
 	unsigned long duplicates = 0;
 
@@ -346,6 +398,13 @@ std::vector<Tet> generate(unsigned int i) {
 	std::cout << "n = " << i << ": " << unique.size() << " unique shapes\n";
 	std::cout << msg << "\n";
 
+	NestedHash<depth>::print();
+	NestedHash<depth>::reset();
+
+	std::cout << "Total tables: " << tables << " total items " << items << std::endl;
+	std::cout << "Average load: " << (float) items / tables << std::endl;
+
+	std::cout << std::endl;
 	return unique;
 
 }
