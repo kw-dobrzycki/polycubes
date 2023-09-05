@@ -143,9 +143,10 @@ struct NestedHash {
 
 	inline static uint64_t loadhi = 0;
 	inline static uint64_t count = 0;
+	inline static uint64_t loadtot = 0;
 
 	static void print() {
-		std::cout << "Depth " << depth << " highest load " << loadhi << " count " << count << std::endl;
+		std::cout << "Depth " << depth << " total load " << loadtot << " highest load " << loadhi << " count " << count << std::endl;
 		NestedHash<depth - 1>::print();
 	}
 
@@ -160,6 +161,7 @@ struct NestedHash {
 		tables = 0;
 		items = 0;
 		collisions = 0;
+		loadtot = 0;
 		NestedHash<depth - 1>::reset();
 	}
 
@@ -200,6 +202,7 @@ struct NestedHash {
 			if (store.size() > 1)
 				collisions++;
 			store.push_back(encoding);
+			loadtot++;
 			if (store.size() > loadhi)
 				loadhi = store.size();
 			return;
@@ -218,9 +221,10 @@ struct NestedHash<0> {
 
 	inline static uint64_t loadhi = 0;
 	inline static uint64_t count = 0;
+	inline static uint64_t loadtot = 0;
 
 	static void print() {
-		std::cout << "Depth " << 0 << " highest load " << loadhi << " count " << count << std::endl;
+		std::cout << "Depth " << 0 << " total load " << loadtot << " highest load " << loadhi << " count " << count << std::endl;
 	}
 
 	NestedHash() {
@@ -234,6 +238,7 @@ struct NestedHash<0> {
 		tables = 0;
 		items = 0;
 		collisions = 0;
+		loadtot = 0;
 	}
 
 	bool contains(const Tet& t) {
@@ -262,6 +267,7 @@ struct NestedHash<0> {
 		if (store.size() > 1)
 			collisions++;
 		store.push_back(encoding);
+		loadtot++;
 		if (store.size() > loadhi)
 			loadhi = store.size();
 	}

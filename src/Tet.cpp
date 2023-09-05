@@ -12,8 +12,8 @@ Tet& Tet::rotX(unsigned i) {
 			coords[j].y = t;
 		}
 	}
-	for (int j = 0; j < spaces.size(); ++j){
-		for (int k = 0; k < i; ++k){
+	for (int j = 0; j < spaces.size(); ++j) {
+		for (int k = 0; k < i; ++k) {
 			Pos::type t = spaces[j].z;
 			spaces[j].z = -spaces[j].y;
 			spaces[j].y = t;
@@ -30,8 +30,8 @@ Tet& Tet::rotY(unsigned i) {
 			coords[j].z = t;
 		}
 	}
-	for (int j = 0; j < spaces.size(); ++j){
-		for (int k = 0; k < i; ++k){
+	for (int j = 0; j < spaces.size(); ++j) {
+		for (int k = 0; k < i; ++k) {
 			Pos::type t = spaces[j].x;
 			spaces[j].x = -spaces[j].z;
 			spaces[j].z = t;
@@ -48,8 +48,8 @@ Tet& Tet::rotZ(unsigned i) {
 			coords[j].x = t;
 		}
 	}
-	for (int j = 0; j < spaces.size(); ++j){
-		for (int k = 0; k < i; ++k){
+	for (int j = 0; j < spaces.size(); ++j) {
+		for (int k = 0; k < i; ++k) {
 			Pos::type t = spaces[j].y;
 			spaces[j].y = -spaces[j].x;
 			spaces[j].x = t;
@@ -127,9 +127,13 @@ Tet Tet::insert(const Pos& block) const {
 }
 
 std::vector<uint64_t> Tet::fullEncode() const {
-	std::vector<uint64_t> bits((n * n * n + 64 - 1) / 64);
 
 	auto bounds = getBounds();
+	unsigned last = ((bounds[3] - bounds[2]) * n * n +
+					 (bounds[5] - bounds[4]) * n +
+					 (bounds[1] - bounds[0]) + 63 + 1) / 64;
+
+	std::vector<uint64_t> bits(last);
 
 	for (int i = 0; i < n; ++i) {
 		unsigned linear = (coords[i].y - bounds[2]) * n * n +

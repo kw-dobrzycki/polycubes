@@ -15,6 +15,8 @@ extern const Pos offsets[6];
 
 extern const int numThreads;
 
+Tet getMaxRotation(Tet t);
+
 std::vector<Tet> generate(unsigned int i);
 
 void write(const std::vector<Tet>& v);
