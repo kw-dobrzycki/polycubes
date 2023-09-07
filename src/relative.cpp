@@ -166,12 +166,12 @@ struct NestedHash {
 		NestedHash<depth - 1>::reset();
 	}
 
-	bool contains(const Tet& t) {
+	bool contains(const Tet& t) const {
 		auto x = t.volumeEncode();
 		return lookup(x);
 	}
 
-	bool lookup(const std::vector<uint64_t>& encoding, unsigned bit = 0) {
+	bool lookup(const std::vector<uint64_t>& encoding, unsigned bit = 0) const {
 		if (bit == encoding.size()) {
 			for (int i = 0; i < store.size(); ++i) {
 				bool equal = true;
@@ -189,7 +189,7 @@ struct NestedHash {
 		if (map.count(encoding[bit]) <= 0)
 			return false;
 
-		return map[encoding[bit]].lookup(encoding, bit + 1);
+		return map.at(encoding[bit]).lookup(encoding, bit + 1);
 	}
 
 	void insert(const Tet& t) {
@@ -243,11 +243,11 @@ struct NestedHash<0> {
 		loadtot = 0;
 	}
 
-	bool contains(const Tet& t) {
+	bool contains(const Tet& t) const {
 		return lookup(t.volumeEncode(), 0);
 	}
 
-	bool lookup(const std::vector<uint64_t>& encoding, unsigned) {
+	bool lookup(const std::vector<uint64_t>& encoding, unsigned) const {
 		for (int i = 0; i < store.size(); ++i) {
 			bool equal = true;
 			for (int j = 0; j < encoding.size(); ++j) {
@@ -290,64 +290,41 @@ std::vector<Tet> generate(unsigned int i) {
 
 	const auto previous = generate(i - 1);
 
-	constexpr int depth = 4;
+	constexpr int depth = 1;
 
 	long long unsigned newShapeCount = 0;
 	long long int counter = 0;
 
-	std::vector<NestedHash<depth>> thread_caches(numThreads);
-	std::vector<std::vector<Tet>> thread_uniques(numThreads);
+	NestedHash<depth> cache;
+	std::vector<Tet> unique;
 
-#pragma omp parallel for default(none) shared(i, thread_caches, thread_uniques, counter, previous, newShapeCount, std::cout)
 	for (int j = 0; j < previous.size(); ++j) {
 		const auto& p = previous[j];
 
-		auto& thread_cache = thread_caches[omp_get_thread_num()];
-		auto& thread_unique = thread_uniques[omp_get_thread_num()];
-
-#pragma omp atomic update
 		counter++;
 		if (!(counter % ((previous.size() + 10 - 1) / 10))) {
-			std::cout << "n = " << i << ": " << (float) counter / previous.size() << " with " << newShapeCount
-					  << " new unique shapes" << std::endl;
+			std::cout << "n = " << i << ": " << (float) counter / previous.size() << std::endl;
 			newShapeCount = 0;
 		}
 
 		auto spaces = p.getFreeSpaces();
 
+#pragma omp parallel for default(none) shared(spaces, p, cache, unique)
 		for (int k = 0; k < spaces.size(); ++k) {
 			auto& f = spaces[k];
 
 			Tet build(p.insert(f));
 			Tet max = getMaxRotation(build);
 
-			if (!thread_cache.contains(max)) {
-				thread_cache.insert(max);
-				thread_unique.push_back(max);
+#pragma omp critical
+			{
+				if (!cache.contains(max)) {
+					cache.insert(max);
+					unique.push_back(max);
+				}
 			}
 		}
 	}
-	NestedHash<depth>::reset();
-
-	NestedHash<depth> cache;
-	std::vector<Tet> unique;
-
-	std::cout << "Merging results...\n";
-
-
-	unsigned long duplicates = 0;
-
-	for (int j = 0; j < thread_uniques.size(); ++j) {
-		for (const auto& t: thread_uniques[j]) {
-			if (!cache.contains(t)) {
-				cache.insert(t);
-				unique.push_back(t);
-				newShapeCount++;
-			} else duplicates++;
-		}
-	}
-
-	std::cout << "purged " << duplicates << " duplicates" << std::endl;
 
 	auto n = unique.size();
 	bool right;
