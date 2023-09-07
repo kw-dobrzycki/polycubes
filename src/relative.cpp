@@ -146,7 +146,8 @@ struct NestedHash {
 	inline static uint64_t loadtot = 0;
 
 	static void print() {
-		std::cout << "Depth " << depth << " total load " << loadtot << " highest load " << loadhi << " count " << count << std::endl;
+		std::cout << "Depth " << depth << " total load " << loadtot << " highest load " << loadhi << " count " << count
+				  << std::endl;
 		NestedHash<depth - 1>::print();
 	}
 
@@ -166,7 +167,7 @@ struct NestedHash {
 	}
 
 	bool contains(const Tet& t) {
-		auto x = t.fullEncode();
+		auto x = t.volumeEncode();
 		return lookup(x);
 	}
 
@@ -192,7 +193,7 @@ struct NestedHash {
 	}
 
 	void insert(const Tet& t) {
-		auto x = t.fullEncode();
+		auto x = t.volumeEncode();
 		add(x);
 		items++;
 	}
@@ -224,7 +225,8 @@ struct NestedHash<0> {
 	inline static uint64_t loadtot = 0;
 
 	static void print() {
-		std::cout << "Depth " << 0 << " total load " << loadtot << " highest load " << loadhi << " count " << count << std::endl;
+		std::cout << "Depth " << 0 << " total load " << loadtot << " highest load " << loadhi << " count " << count
+				  << std::endl;
 	}
 
 	NestedHash() {
@@ -242,7 +244,7 @@ struct NestedHash<0> {
 	}
 
 	bool contains(const Tet& t) {
-		return lookup(t.fullEncode(), 0);
+		return lookup(t.volumeEncode(), 0);
 	}
 
 	bool lookup(const std::vector<uint64_t>& encoding, unsigned) {
@@ -260,7 +262,7 @@ struct NestedHash<0> {
 	}
 
 	void insert(const Tet& t) {
-		add(t.fullEncode(), 0);
+		add(t.volumeEncode(), 0);
 	}
 
 	void add(const std::vector<uint64_t>& encoding, unsigned) {
@@ -273,26 +275,27 @@ struct NestedHash<0> {
 	}
 };
 
+bool compareTet(const Tet& a, const Tet& b) {
+	for (int i = 0; i < a.n; ++i) {
+		if (a.coords[i] != b.coords[i])
+			return false;
+	}
+	return true;
+}
+
 std::vector<Tet> generate(unsigned int i) {
 	if (i <= 1) {
-		return std::vector{Tet(i, {{0, 0, 0}}, {
-				{0,  1,  0},
-				{0,  0,  -1},
-				{1,  0,  0},
-				{0,  0,  1},
-				{-1, 0,  0},
-				{0,  -1, 0}
-		})};
+		return std::vector{Tet{1, {{0, 0, 0}}}};
 	}
 
 	const auto previous = generate(i - 1);
 
-	constexpr int depth = 2;
+	constexpr int depth = 4;
 
 	long long unsigned newShapeCount = 0;
 	long long int counter = 0;
 
-	std::vector<NestedHash<1>> thread_caches(numThreads);
+	std::vector<NestedHash<depth>> thread_caches(numThreads);
 	std::vector<std::vector<Tet>> thread_uniques(numThreads);
 
 #pragma omp parallel for default(none) shared(i, thread_caches, thread_uniques, counter, previous, newShapeCount, std::cout)
@@ -310,8 +313,10 @@ std::vector<Tet> generate(unsigned int i) {
 			newShapeCount = 0;
 		}
 
-		for (int k = 0; k < p.spaces.size(); ++k) {
-			auto& f = p.spaces[k];
+		auto spaces = p.getFreeSpaces();
+
+		for (int k = 0; k < spaces.size(); ++k) {
+			auto& f = spaces[k];
 
 			Tet build(p.insert(f));
 			Tet max = getMaxRotation(build);
@@ -405,10 +410,10 @@ std::vector<Tet> generate(unsigned int i) {
 	std::cout << msg << "\n";
 
 	NestedHash<depth>::print();
-	NestedHash<depth>::reset();
 
 	std::cout << "Total tables: " << tables << " total items " << items << std::endl;
 	std::cout << "Average load: " << (float) items / tables << std::endl;
+	NestedHash<depth>::reset();
 
 	std::cout << std::endl;
 	return unique;

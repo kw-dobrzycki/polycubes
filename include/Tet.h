@@ -14,9 +14,8 @@ struct Tet {
 
 	unsigned int n;
 	std::vector<Pos> coords;
-	std::vector<Pos> spaces;
 
-	Tet(unsigned int n, const std::vector<Pos>& coords, const std::vector<Pos>& spaces);
+	Tet(unsigned int n, const std::vector<Pos>& coords);
 
 	Tet& rotX(unsigned i = 1);
 
@@ -29,6 +28,8 @@ struct Tet {
 	Tet insert(const Pos& block) const;
 
 	std::vector<uint64_t> fullEncode() const;
+
+	std::vector<uint64_t> volumeEncode() const;
 
 	std::array<Pos::type, 6> getBounds() const;
 };
