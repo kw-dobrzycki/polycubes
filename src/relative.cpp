@@ -133,6 +133,7 @@ Tet getMaxRotation(Tet t) {
 }
 
 static unsigned long long collisions = 0;
+static unsigned long long comparisons = 0;
 static unsigned long long tables = 0;
 static unsigned long long items = 0;
 
@@ -162,6 +163,7 @@ struct NestedHash {
 		tables = 0;
 		items = 0;
 		collisions = 0;
+		comparisons = 0;
 		loadtot = 0;
 		NestedHash<depth - 1>::reset();
 	}
@@ -174,6 +176,7 @@ struct NestedHash {
 	bool lookup(const std::vector<uint64_t>& encoding, unsigned bit = 0) const {
 		if (bit == encoding.size()) {
 			for (int i = 0; i < store.size(); ++i) {
+				comparisons++;
 				bool equal = true;
 				for (int j = 0; j < encoding.size(); ++j) {
 					if (store[i][j] != encoding[j]) {
@@ -238,6 +241,7 @@ struct NestedHash<0> {
 		loadhi = 0;
 		count = 0;
 		tables = 0;
+		comparisons = 0;
 		items = 0;
 		collisions = 0;
 		loadtot = 0;
@@ -249,6 +253,7 @@ struct NestedHash<0> {
 
 	bool lookup(const std::vector<uint64_t>& encoding, unsigned) const {
 		for (int i = 0; i < store.size(); ++i) {
+			comparisons++;
 			bool equal = true;
 			for (int j = 0; j < encoding.size(); ++j) {
 				if (store[i][j] != encoding[j]) {
@@ -298,13 +303,14 @@ std::vector<Tet> generate(unsigned int i) {
 	NestedHash<depth> cache;
 	std::vector<Tet> unique;
 
+#pragma omp parallel for default(none) shared(cache, unique, previous, counter, std::cout, i)
 	for (int j = 0; j < previous.size(); ++j) {
 		const auto& p = previous[j];
 
+#pragma omp atomic update
 		counter++;
 		if (!(counter % ((previous.size() + 10 - 1) / 10))) {
 			std::cout << "n = " << i << ": " << (float) counter / previous.size() << std::endl;
-			newShapeCount = 0;
 		}
 
 		auto spaces = p.getFreeSpaces();
@@ -377,6 +383,7 @@ std::vector<Tet> generate(unsigned int i) {
 	}
 
 	std::cout << "Total collisions: " << collisions << std::endl;
+	std::cout << "Total comparisons: " << comparisons << std::endl;
 	collisions = 0;
 
 	std::string msg = "INCORRECT";
