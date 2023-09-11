@@ -15,6 +15,8 @@ struct Tet {
 	unsigned int n;
 	std::vector<Pos> coords;
 
+	Tet() : n(0), coords({}){};
+
 	Tet(unsigned int n, const std::vector<Pos>& coords);
 
 	Tet& rotX(unsigned i = 1);

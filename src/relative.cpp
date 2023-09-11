@@ -297,36 +297,55 @@ std::vector<Tet> generate(unsigned int i) {
 
 	constexpr int depth = 1;
 
-	long long unsigned newShapeCount = 0;
 	long long int counter = 0;
 
 	NestedHash<depth> cache;
 	std::vector<Tet> unique;
 
-#pragma omp parallel for default(none) shared(cache, unique, previous, counter, std::cout, i)
 	for (int j = 0; j < previous.size(); ++j) {
 		const auto& p = previous[j];
 
-#pragma omp atomic update
 		counter++;
 		if (!(counter % ((previous.size() + 10 - 1) / 10))) {
-			std::cout << "n = " << i << ": " << (float) counter / previous.size() << std::endl;
+			std::cout << "n = " << i << ": " << (float) counter / previous.size() * 100 << "%" << std::endl;
 		}
 
 		auto spaces = p.getFreeSpaces();
 
-#pragma omp parallel for default(none) shared(spaces, p, cache, unique)
+		std::vector<Tet> loopUnique(spaces.size());
+		std::vector<bool> uniqueBuild(spaces.size(), false);
+
+		#pragma omp parallel for default(none) shared(loopUnique, uniqueBuild, spaces, p, cache)
 		for (int k = 0; k < spaces.size(); ++k) {
 			auto& f = spaces[k];
 
-			Tet build(p.insert(f));
+			Tet build = p.insert(f);
 			Tet max = getMaxRotation(build);
 
-#pragma omp critical
-			{
-				if (!cache.contains(max)) {
-					cache.insert(max);
-					unique.push_back(max);
+			if (!cache.contains(max)) {
+				loopUnique[k] = max;
+				uniqueBuild[k] = true;
+			}
+		}
+
+		#pragma omp parallel for default(none) shared(spaces, cache, unique, loopUnique, uniqueBuild)
+		for (int k = 0; k < spaces.size(); ++k) {
+			if (uniqueBuild[k]) {
+				//check against siblings
+				bool kin = false;
+				for (int l = 0; l < k; ++l) {
+					if (uniqueBuild[l] && loopUnique[k].volumeEncode() == loopUnique[l].volumeEncode()) {
+						kin = true;
+						break;
+					}
+				}
+				if (kin)
+					continue;
+
+				#pragma omp critical
+				{
+					cache.insert(loopUnique[k]);
+					unique.push_back(loopUnique[k]);
 				}
 			}
 		}
