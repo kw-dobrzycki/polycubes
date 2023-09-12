@@ -305,49 +305,44 @@ std::vector<Tet> generate(unsigned int i) {
 
 	//pad previous with empty Tets for work-sharing
 	int fill = numThreads - previous.size() % numThreads;
-	for (int j = 0; j < fill; ++j) {
+	for (int j = 0; j < fill % 8; ++j) {
 		previous.emplace_back();
 	}
 
 	std::cout << "Padded: " << previous.size() << std::endl;
+	std::cout << previous.size() / numThreads << " batches" << std::endl;
+	unsigned chunksize = previous.size() / numThreads;
 
-	NestedHash<1> stepUnique;
-	for (int j = 0; j < previous.size(); j += numThreads) {
+	#pragma omp parallel default(none) shared(previous, numThreads, chunksize, cache, unique)
+	for (unsigned j = omp_get_thread_num() * chunksize; j < (1 + omp_get_thread_num()) * chunksize; ++j) {
 
-		if (!((j / numThreads) % 30)){
-			stepUnique = NestedHash<1>{};
-		}
+		const auto& p = previous[j];
 
-		#pragma omp parallel default(none) shared(previous, j, stepUnique, cache, unique)
-		{
-			const auto& p = previous[j + omp_get_thread_num()];
+		auto spaces = p.getFreeSpaces();
+		std::vector<Tet> uniqueBuilds;
 
-			auto spaces = p.getFreeSpaces();
-			std::vector<Tet> uniqueBuilds;
+		for (auto& f: p.getFreeSpaces()) {
+			Tet build = p.insert(f);
+			Tet max = getMaxRotation(build);
 
-			for (auto& f: p.getFreeSpaces()) {
-				Tet build = p.insert(f);
-				Tet max = getMaxRotation(build);
-
-				if (!cache.contains(max)) {
-					uniqueBuilds.push_back(max);
-				}
-			}
-
-			//prevent writing while some threads might still be reading
-			#pragma omp barrier
-
-			//all threads have now found their unique children
-			//now compare against those from other threads that have already been written
-			#pragma omp critical
-			for (auto& m: uniqueBuilds) {
-				if (!stepUnique.contains(m)) {
-					stepUnique.insert(m);
-					cache.insert(m);
-					unique.push_back(m);
-				}
+			if (!cache.contains(max)) {
+				uniqueBuilds.push_back(max);
 			}
 		}
+
+		//prevent writing while some threads might still be reading
+		#pragma omp barrier
+
+		//all threads have now found their unique children
+		//now compare against those from other threads that have already been written
+		#pragma omp critical
+		for (auto& m: uniqueBuilds) {
+			if (!cache.contains(m)) {
+				cache.insert(m);
+				unique.push_back(m);
+			}
+		}
+//		#pragma omp barrier
 	}
 
 
