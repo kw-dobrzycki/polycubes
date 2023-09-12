@@ -293,7 +293,7 @@ std::vector<Tet> generate(unsigned int i) {
 		return std::vector{Tet{1, {{0, 0, 0}}}};
 	}
 
-	const auto previous = generate(i - 1);
+	auto previous = generate(i - 1);
 
 	constexpr int depth = 1;
 
@@ -301,55 +301,55 @@ std::vector<Tet> generate(unsigned int i) {
 
 	NestedHash<depth> cache;
 	std::vector<Tet> unique;
+	std::cout << "Size: " << previous.size() << std::endl;
 
-	for (int j = 0; j < previous.size(); ++j) {
-		const auto& p = previous[j];
+	//pad previous with empty Tets for work-sharing
+	int fill = numThreads - previous.size() % numThreads;
+	for (int j = 0; j < fill; ++j) {
+		previous.emplace_back();
+	}
 
-		counter++;
-		if (!(counter % ((previous.size() + 10 - 1) / 10))) {
-			std::cout << "n = " << i << ": " << (float) counter / previous.size() * 100 << "%" << std::endl;
+	std::cout << "Padded: " << previous.size() << std::endl;
+
+	NestedHash<1> stepUnique;
+	for (int j = 0; j < previous.size(); j += numThreads) {
+
+		if (!((j / numThreads) % 30)){
+			stepUnique = NestedHash<1>{};
 		}
 
-		auto spaces = p.getFreeSpaces();
+		#pragma omp parallel default(none) shared(previous, j, stepUnique, cache, unique)
+		{
+			const auto& p = previous[j + omp_get_thread_num()];
 
-		std::vector<Tet> loopUnique(spaces.size());
-		std::vector<bool> uniqueBuild(spaces.size(), false);
+			auto spaces = p.getFreeSpaces();
+			std::vector<Tet> uniqueBuilds;
 
-		#pragma omp parallel for default(none) shared(loopUnique, uniqueBuild, spaces, p, cache)
-		for (int k = 0; k < spaces.size(); ++k) {
-			auto& f = spaces[k];
+			for (auto& f: p.getFreeSpaces()) {
+				Tet build = p.insert(f);
+				Tet max = getMaxRotation(build);
 
-			Tet build = p.insert(f);
-			Tet max = getMaxRotation(build);
-
-			if (!cache.contains(max)) {
-				loopUnique[k] = max;
-				uniqueBuild[k] = true;
-			}
-		}
-
-		#pragma omp parallel for default(none) shared(spaces, cache, unique, loopUnique, uniqueBuild)
-		for (int k = 0; k < spaces.size(); ++k) {
-			if (uniqueBuild[k]) {
-				//check against siblings
-				bool kin = false;
-				for (int l = 0; l < k; ++l) {
-					if (uniqueBuild[l] && loopUnique[k].volumeEncode() == loopUnique[l].volumeEncode()) {
-						kin = true;
-						break;
-					}
+				if (!cache.contains(max)) {
+					uniqueBuilds.push_back(max);
 				}
-				if (kin)
-					continue;
+			}
 
-				#pragma omp critical
-				{
-					cache.insert(loopUnique[k]);
-					unique.push_back(loopUnique[k]);
+			//prevent writing while some threads might still be reading
+			#pragma omp barrier
+
+			//all threads have now found their unique children
+			//now compare against those from other threads that have already been written
+			#pragma omp critical
+			for (auto& m: uniqueBuilds) {
+				if (!stepUnique.contains(m)) {
+					stepUnique.insert(m);
+					cache.insert(m);
+					unique.push_back(m);
 				}
 			}
 		}
 	}
+
 
 	auto n = unique.size();
 	bool right;
