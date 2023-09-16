@@ -30,21 +30,55 @@ struct compare {
 		Pos::boundType Z = bounds[5] - bounds[4] + 1;
 
 		//translate and linearise
-		a = a - Pos{bounds[0], bounds[2], bounds[4]};
-		b = b - Pos{bounds[0], bounds[2], bounds[4]};
 		unsigned la = a.y * X * Z + a.z * X + a.x;
 		unsigned lb = b.y * X * Z + b.z * X + b.x;
 		return la < lb;
 	}
 };
 
+//0 = equal; 1 = a < b; 2 = a > b
+int compareBounds(const std::array<Pos::type, 6>& a, const std::array<Pos::type, 6>& b) {
+	auto AX = a[1] - a[0];
+	auto AY = a[3] - a[2];
+	auto AZ = a[5] - a[4];
+
+	auto BX = b[1] - b[0];
+	auto BY = b[3] - b[2];
+	auto BZ = b[5] - b[4];
+
+	if (AY > BY)
+		return 1;
+	else if (AY < BY)
+		return 2;
+	else if (AZ > BZ)
+		return 1;
+	else if (AZ < BZ)
+		return 2;
+	else if (AX > BX)
+		return 1;
+	else if (AX < BX)
+		return 2;
+
+	return 0;
+}
+
+unsigned maxComparisons = 0;
+
 // assumes a.n == b.n
+// returns a < b
 bool biggerBoundEncoding(const Tet& a, const Tet& b) {
 	//rebase a, b; sort their coordinates by their encoding index, return the bigger
 	auto boundsA = a.getBounds();
 	auto boundsB = b.getBounds();
 	auto seedA = Pos{boundsA[0], boundsA[2], boundsA[4]};
 	auto seedB = Pos{boundsB[0], boundsB[2], boundsB[4]};
+
+	int boundsUnequal = compareBounds(boundsA, boundsB);
+
+	if (boundsUnequal)
+		return boundsUnequal == 1;
+
+	maxComparisons++;
 
 	std::vector<Pos> A(a.n);
 	std::vector<Pos> B(b.n);
@@ -298,26 +332,14 @@ std::vector<Tet> generate(unsigned int i) {
 	constexpr int depth = 1;
 
 	long long int counter = 0;
+	maxComparisons = 0;
 
 	NestedHash<depth> cache;
 	std::vector<Tet> unique;
-	std::cout << "Size: " << previous.size() << std::endl;
 
-	//pad previous with empty Tets for work-sharing
-	int fill = numThreads - previous.size() % numThreads;
-	for (int j = 0; j < fill % 8; ++j) {
-		previous.emplace_back();
-	}
-
-	std::cout << "Padded: " << previous.size() << std::endl;
-	std::cout << previous.size() / numThreads << " batches" << std::endl;
-	unsigned chunksize = previous.size() / numThreads;
-
-	#pragma omp parallel default(none) shared(previous, numThreads, chunksize, cache, unique)
-	for (unsigned j = omp_get_thread_num() * chunksize; j < (1 + omp_get_thread_num()) * chunksize; ++j) {
-
+	#pragma omp parallel for default(none) shared(previous, numThreads, cache, unique)
+	for (int j = 0; j < previous.size(); ++j) {
 		const auto& p = previous[j];
-
 		auto spaces = p.getFreeSpaces();
 		std::vector<Tet> uniqueBuilds;
 
@@ -325,24 +347,12 @@ std::vector<Tet> generate(unsigned int i) {
 			Tet build = p.insert(f);
 			Tet max = getMaxRotation(build);
 
+			#pragma omp critical
 			if (!cache.contains(max)) {
-				uniqueBuilds.push_back(max);
+				cache.insert(max);
+				unique.push_back(max);
 			}
 		}
-
-		//prevent writing while some threads might still be reading
-		#pragma omp barrier
-
-		//all threads have now found their unique children
-		//now compare against those from other threads that have already been written
-		#pragma omp critical
-		for (auto& m: uniqueBuilds) {
-			if (!cache.contains(m)) {
-				cache.insert(m);
-				unique.push_back(m);
-			}
-		}
-//		#pragma omp barrier
 	}
 
 
@@ -398,6 +408,7 @@ std::vector<Tet> generate(unsigned int i) {
 
 	std::cout << "Total collisions: " << collisions << std::endl;
 	std::cout << "Total comparisons: " << comparisons << std::endl;
+	std::cout << "Total max-comparisons: " << maxComparisons << std::endl;
 	collisions = 0;
 
 	std::string msg = "INCORRECT";
