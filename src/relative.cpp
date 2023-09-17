@@ -174,7 +174,7 @@ static unsigned long long items = 0;
 template<unsigned depth>
 struct NestedHash {
 	std::unordered_map<uint64_t, NestedHash<depth - 1>> map;
-	std::vector<std::vector<uint64_t>> store;
+	std::vector<uint64_t> store;
 
 	inline static uint64_t loadhi = 0;
 	inline static uint64_t count = 0;
@@ -209,9 +209,9 @@ struct NestedHash {
 
 	bool lookup(const std::vector<uint64_t>& encoding, unsigned bit = 0) const {
 		if (bit == encoding.size()) {
-			for (int i = 0; i < store.size(); ++i) {
+			for (unsigned long long i : store) {
 				comparisons++;
-				if (store[i] == encoding) return true;
+				if (i == encoding[bit - 1]) return true;
 			}
 			return false;
 		}
@@ -232,7 +232,7 @@ struct NestedHash {
 		if (bit == encoding.size()) {
 			if (store.size() > 1)
 				collisions++;
-			store.push_back(encoding);
+			store.push_back(encoding[bit - 1]);
 			loadtot++;
 			if (store.size() > loadhi)
 				loadhi = store.size();
@@ -276,9 +276,9 @@ struct NestedHash<0> {
 	}
 
 	bool lookup(const std::vector<uint64_t>& encoding, unsigned) const {
-		for (int i = 0; i < store.size(); ++i) {
+		for (const auto & i : store) {
 			comparisons++;
-			if (store[i] == encoding) return true;
+			if (i == encoding) return true;
 		}
 		return false;
 	}
