@@ -139,4 +139,4 @@ std::array<Pos::type, 6> Tet::getBounds() const {
 	return {ax, aX, ay, aY, az, aZ};
 }
 
-Tet::Tet(unsigned int n, const std::vector<Pos>& coords) : n(n), coords(coords) {}
+Tet::Tet(unsigned int n, const std::vector<Pos>& coords) : n(n), coords(coords), volumeEncoding(volumeEncode()) {}

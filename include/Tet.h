@@ -14,8 +14,9 @@ struct Tet {
 
 	unsigned int n;
 	std::vector<Pos> coords;
+	std::vector<uint64_t> volumeEncoding;
 
-	Tet() : n(0), coords({}){};
+	Tet() : n(0), coords({}), volumeEncoding({0}) {};
 
 	Tet(unsigned int n, const std::vector<Pos>& coords);
 

@@ -203,7 +203,7 @@ struct NestedHash {
 	}
 
 	bool contains(const Tet& t) const {
-		auto x = t.volumeEncode();
+		auto& x = t.volumeEncoding;
 		return lookup(x);
 	}
 
@@ -211,14 +211,7 @@ struct NestedHash {
 		if (bit == encoding.size()) {
 			for (int i = 0; i < store.size(); ++i) {
 				comparisons++;
-				bool equal = true;
-				for (int j = 0; j < encoding.size(); ++j) {
-					if (store[i][j] != encoding[j]) {
-						equal = false;
-						break;
-					}
-				}
-				if (equal) return true;
+				if (store[i] == encoding) return true;
 			}
 			return false;
 		}
@@ -230,7 +223,7 @@ struct NestedHash {
 	}
 
 	void insert(const Tet& t) {
-		auto x = t.volumeEncode();
+		auto& x = t.volumeEncoding;
 		add(x);
 		items++;
 	}
@@ -246,9 +239,6 @@ struct NestedHash {
 			return;
 		}
 
-		if (map.count(encoding[bit]) <= 0) {
-			map.emplace(std::piecewise_construct, std::make_tuple(encoding[bit]), std::make_tuple());
-		}
 		map[encoding[bit]].add(encoding, bit + 1);
 	}
 };
@@ -282,7 +272,7 @@ struct NestedHash<0> {
 	}
 
 	bool contains(const Tet& t) const {
-		return lookup(t.volumeEncode(), 0);
+		return lookup(t.volumeEncoding, 0);
 	}
 
 	bool lookup(const std::vector<uint64_t>& encoding, unsigned) const {
@@ -301,7 +291,7 @@ struct NestedHash<0> {
 	}
 
 	void insert(const Tet& t) {
-		add(t.volumeEncode(), 0);
+		add(t.volumeEncoding, 0);
 	}
 
 	void add(const std::vector<uint64_t>& encoding, unsigned) {
@@ -340,12 +330,11 @@ std::vector<Tet> generate(unsigned int i) {
 	#pragma omp parallel for default(none) shared(previous, numThreads, cache, unique)
 	for (int j = 0; j < previous.size(); ++j) {
 		const auto& p = previous[j];
-		auto spaces = p.getFreeSpaces();
-		std::vector<Tet> uniqueBuilds;
 
 		for (auto& f: p.getFreeSpaces()) {
 			Tet build = p.insert(f);
 			Tet max = getMaxRotation(build);
+			max.volumeEncoding = max.volumeEncode();
 
 			#pragma omp critical
 			if (!cache.contains(max)) {
