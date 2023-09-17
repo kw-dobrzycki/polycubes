@@ -278,14 +278,7 @@ struct NestedHash<0> {
 	bool lookup(const std::vector<uint64_t>& encoding, unsigned) const {
 		for (int i = 0; i < store.size(); ++i) {
 			comparisons++;
-			bool equal = true;
-			for (int j = 0; j < encoding.size(); ++j) {
-				if (store[i][j] != encoding[j]) {
-					equal = false;
-					break;
-				}
-			}
-			if (equal) return true;
+			if (store[i] == encoding) return true;
 		}
 		return false;
 	}
