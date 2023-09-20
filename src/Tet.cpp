@@ -116,11 +116,12 @@ std::vector<uint64_t> Tet::volumeEncode() const {
 		ints[bit / 64] |= uint64_t(0b1) << (64 - bit % 64 - 1);
 	}
 
-	for (unsigned i = ints.size() - 1; true; --i) {
+	for (unsigned i = ints.size() - 1; i > 0; --i) {
 		if (ints[i] == 0)
 			ints.pop_back();
 		else break;
 	}
+
 	return ints;
 }
 

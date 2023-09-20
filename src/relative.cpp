@@ -209,7 +209,7 @@ struct NestedHash {
 
 	bool lookup(const std::vector<uint64_t>& encoding, unsigned bit = 0) const {
 		if (bit == encoding.size()) {
-			for (unsigned long long i : store) {
+			for (unsigned long long i: store) {
 				comparisons++;
 				if (i == encoding[bit - 1]) return true;
 			}
@@ -276,7 +276,7 @@ struct NestedHash<0> {
 	}
 
 	bool lookup(const std::vector<uint64_t>& encoding, unsigned) const {
-		for (const auto & i : store) {
+		for (const auto& i: store) {
 			comparisons++;
 			if (i == encoding) return true;
 		}
@@ -320,23 +320,46 @@ std::vector<Tet> generate(unsigned int i) {
 	NestedHash<depth> cache;
 	std::vector<Tet> unique;
 
-	#pragma omp parallel for default(none) shared(previous, numThreads, cache, unique)
-	for (int j = 0; j < previous.size(); ++j) {
-		const auto& p = previous[j];
+	//pad previous to create empty work for distribution
+	unsigned fill = numThreads - previous.size() % numThreads;
+	for (int j = 0; j < fill % numThreads; ++j) {
+		previous.push_back(Tet(0, {}));
+	}
 
-		for (auto& f: p.getFreeSpaces()) {
+	unsigned chunksize = previous.size() / numThreads;
+
+	std::vector<std::vector<Tet>> local(numThreads);
+
+	#pragma omp parallel default(none) shared(chunksize, previous, cache, local, unique, numThreads)
+	for (unsigned j = omp_get_thread_num() * chunksize; j < (omp_get_thread_num() + 1) * chunksize; ++j) {
+
+		const auto& p = previous[j];
+		std::vector<Tet>& results = local[omp_get_thread_num()];
+		results.clear();
+
+		for (const auto& f: p.getFreeSpaces()) {
 			Tet build = p.insert(f);
 			Tet max = getMaxRotation(build);
 			max.volumeEncoding = max.volumeEncode();
-
-			#pragma omp critical
 			if (!cache.contains(max)) {
-				cache.insert(max);
-				unique.push_back(max);
+				results.push_back(max);
 			}
 		}
-	}
 
+		#pragma omp barrier
+		#pragma omp single
+		{
+			for (int k = 0; k < numThreads; ++k) {
+				for (const auto& res: local[k]) {
+					if (!cache.contains(res)) {
+						cache.insert(res);
+						unique.push_back(res);
+					}
+				}
+			}
+		}
+		//implied barrier
+	}
 
 	auto n = unique.size();
 	bool right;
