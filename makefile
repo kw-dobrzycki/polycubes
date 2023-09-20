@@ -1,8 +1,8 @@
 CC = g++
-TARGET = main
+TARGET = cubes
 TEST = test
 LIB = libpolycube.a
-CFLAGS = -I$(HDIR) -std=c++2a -O3
+CFLAGS = -I$(HDIR) -std=c++2a -O3 -fopenmp
 
 # directories for library, this program is only main.
 SRCDIR = src

@@ -10,14 +10,8 @@
 #include "relative.h"
 #include "groups.h"
 #include "Tet.h"
-#include "bloom_filter.hpp"
-
-const unsigned* const selfGroupOf{SelfGroup::generateSelfGroups()};
-const unsigned* const localGroupOf{LocalGroup::generateLocalGroups()};
-
-unsigned opposite[]{
-		5, 3, 4, 1, 2, 0
-};
+#include <omp.h>
+#include <list>
 
 const Pos offsets[]{
 		{0,  1,  0},
@@ -28,360 +22,63 @@ const Pos offsets[]{
 		{0,  -1, 0},
 };
 
-auto compareLinearCoordinates = sparseCompare<unsigned, 265000, 50>;
-
-unsigned toLinear(const Pos& p) {
-	unsigned b = 0;
-	b = (b & ~0x3F000) | (p.x & 0x3F) << 12;
-	b = (b & ~0xFC0) | (p.y & 0x3F) << 6;
-	b = (b & ~0x3F) | (p.z & 0x3F);
-	return b;
-}
-
-void toLinearVector(const Tet& t, std::vector<unsigned>& dst) {
-	for (int i = 0; i < t.n; ++i) {
-		dst[i] = toLinear(t.coords[i]);
-	}
-}
-
-std::pair<
-		std::pair<std::vector<unsigned int>, std::vector<unsigned int>>, //first rarest
-		std::pair<std::vector<unsigned int>, std::vector<unsigned int>>  //second rarest
->
-getRareSeeds(const std::vector<unsigned int>& A, const std::vector<unsigned int>& B) {
-	thread_local int* countA = new int[43451]();
-	thread_local int* countB = new int[43451]();
-	thread_local unsigned* indices = new unsigned[50]();
-	int items = 0;
-
-	for (int i = 0; i < A.size(); ++i) {
-		countA[A[i]]++;
-		countB[B[i]]++;
-		indices[items++] = A[i];
-		indices[items++] = B[i];
-	}
-
-	countA[43450] = std::max(A.size(), B.size()) + 1;
-	countB[43450] = countA[43450];
-
-	unsigned min1 = 43450;
-	unsigned min2 = min1;
-	for (int i = 0; i < items; ++i) {
-
-		//get argmin
-		if (countA[indices[i]] * countB[indices[i]]) { //if in both
-			auto a = std::min(countA[indices[i]], countB[indices[i]]);
-			auto b = std::min(countA[min1], countB[min1]);
-			auto c = std::min(countA[min2], countB[min2]);
-
-			if (a < b) {
-				min2 = min1;
-				min1 = indices[i];
-			} else if (a < c && indices[i] != min1) {
-				min2 = indices[i];
-			}
-		}
-
-		//and if it's the lowest possible, break
-		if (countA[min2] == 1 || countB[min2] == 1) {
-			break;
-		}
-	}
-
-	//clean up
-	for (int i = 0; i < items; ++i) {
-		countA[indices[i]] = 0;
-		countB[indices[i]] = 0;
-		indices[i] = 0;
-	}
-
-	std::vector<unsigned> a1;
-	std::vector<unsigned> a2;
-	std::vector<unsigned> b1;
-	std::vector<unsigned> b2;
-
-	for (int i = 0; i < A.size(); ++i) {
-		//if element in A belongs to the rarest group
-		if (A[i] == min1) {
-			a1.push_back(i);
-		}
-
-		if (A[i] == min2) {
-			a2.push_back(i);
-		}
-
-		if (B[i] == min1) {
-			b1.push_back(i);
-		}
-
-		if (B[i] == min2) {
-			b2.push_back(i);
-		}
-	}
-
-	return {{a1, b1},
-			{a2, b2}};
-}
-
-Pos& rotX(Pos& p, unsigned i = 1) {
-	for (int j = 0; j < i; ++j) {
-		auto t = p.z;
-		p.z = -p.y;
-		p.y = t;
-	}
-	return p;
-}
-
-Pos& rotY(Pos& p, unsigned i = 1) {
-	for (int j = 0; j < i; ++j) {
-		auto t = p.x;
-		p.x = -p.z;
-		p.z = t;
-	}
-	return p;
-}
-
-Pos& rotZ(Pos& p, unsigned i = 1) {
-	for (int j = 0; j < i; ++j) {
-		auto t = p.y;
-		p.y = -p.x;
-		p.x = t;
-	}
-	return p;
-}
-
-bool markerIsIn(const Pos& marker, const std::vector<unsigned> v) {
-	auto m = toLinear(marker);
-	for (int i = 0; i < v.size(); ++i) {
-		if (v[i] == m) {
-			return true;
-		}
-	}
-	return false;
-}
-
-bool fullCompareRotateSeeds(const std::vector<unsigned>& referenceLinear,
-							const std::vector<unsigned>& referenceLinearSeeds,
-							const Tet& B,
-							const std::vector<unsigned>& rebaseB,
-							const std::vector<unsigned>& compareB) {
-
-
-	for (int i = 0; i < rebaseB.size(); ++i) {
-
-		//choose a non-origin piece to test
-		Pos marker = B.coords[compareB[(i + 1) % compareB.size()]] - B.coords[rebaseB[i]];
-
-		std::vector<unsigned> rot1;
-		std::vector<unsigned> rot2;
-
-		//spin on top
-		for (int j = 0; j < 4; ++j) {
-			if (markerIsIn(marker, referenceLinearSeeds)) {
-				rot1.push_back(0);
-				rot2.push_back(j);
-			}
-			rotY(marker);
-		}
-
-		//spin on back
-		rotX(marker);
-		for (int j = 0; j < 4; ++j) {
-			if (markerIsIn(marker, referenceLinearSeeds)) {
-				rot1.push_back(1);
-				rot2.push_back(j);
-			}
-			rotZ(marker);
-		}
-
-		//spin on bottom
-		rotX(marker);
-		for (int j = 0; j < 4; ++j) {
-			if (markerIsIn(marker, referenceLinearSeeds)) {
-				rot1.push_back(5);
-				rot2.push_back(j);
-			}
-			rotY(marker);
-		}
-
-		//spin on front
-		rotX(marker);
-		for (int j = 0; j < 4; ++j) {
-			if (markerIsIn(marker, referenceLinearSeeds)) {
-				rot1.push_back(3);
-				rot2.push_back(j);
-			}
-			rotZ(marker);
-		}
-
-		//spin on right
-		rotX(marker);
-		rotZ(marker);
-		for (int j = 0; j < 4; ++j) {
-			if (markerIsIn(marker, referenceLinearSeeds)) {
-				rot1.push_back(2);
-				rot2.push_back(j);
-			}
-			rotX(marker);
-		}
-
-		//spin on left
-		rotZ(marker);
-		rotZ(marker);
-		for (int j = 0; j < 4; ++j) {
-			if (markerIsIn(marker, referenceLinearSeeds)) {
-				rot1.push_back(4);
-				rot2.push_back(j);
-			}
-			rotX(marker);
-		}
-
-		//now test all of B using potential matches
-		std::vector<unsigned> comparatorLinear(B.n);
-		for (int j = 0; j < rot1.size(); ++j) {
-			Tet comparator = B;
-			//rebase comparator as well
-			auto seed = B.coords[rebaseB[i]];
-			for (int k = 0; k < B.n; ++k) {
-				comparator.coords[k] = comparator.coords[k] - seed;
-			}
-			switch (rot1[j]) {
-				case 0:
-					comparator.rotY(rot2[j]);
-					break;
-				case 1:
-					comparator.rotX();
-					comparator.rotZ(rot2[j]);
-					break;
-				case 2:
-					comparator.rotZ();
-					comparator.rotX(rot2[j]);
-					break;
-				case 3:
-					comparator.rotX();
-					comparator.rotX();
-					comparator.rotX();
-					comparator.rotZ(rot2[j]);
-					break;
-				case 4:
-					comparator.rotZ();
-					comparator.rotZ();
-					comparator.rotZ();
-					comparator.rotX(rot2[j]);
-					break;
-				case 5:
-					comparator.rotX();
-					comparator.rotX();
-					comparator.rotY(rot2[j]);
-					break;
-			}
-
-			toLinearVector(comparator, comparatorLinear);
-			if (compareLinearCoordinates(referenceLinear, comparatorLinear)) {
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
-bool fullCompare(const Tet& A, const Tet& B) {
-	/* translation equivalence: relative coordinates occupy the same space*/
-	auto seeds = getRareSeeds(A.encodeSelf(), B.encodeSelf()); //todo perhaps could use local here
-	const auto& rare1 = seeds.first;
-	const auto& rare2 = seeds.second;
-
-	if (rare1.first.size() != rare1.second.size() ||
-		rare2.first.size() != rare2.second.size() ||
-		rare1.first.empty())
-		return false;
-
-	std::vector<unsigned> rebaseB;
-	std::vector<unsigned> compareB;
-
-	auto* rarity = &rare2;
-	if (rare1.first.size() > 1) {
-		rarity = &rare1;
-
-		rebaseB = rare1.second;
-		compareB = rare1.second;
-	} else {
-		rebaseB = {rare1.second[0]};
-		compareB = {rare2.second[0]};
-	}
-
-	//get rebased linear A seeds (rebased on the same rarity that is used to test B)
-	auto seedA = A.coords[rare1.first[0]];
-	std::vector<unsigned> referenceLinearSeeds(rarity->first.size());
-	for (int i = 0; i < rarity->first.size(); ++i) {
-		referenceLinearSeeds[i] = toLinear(A.coords[rarity->first[i]] - seedA);
-	}
-
-	//get rebased linear A
-	std::vector<unsigned> referenceLinear(A.n);
-	for (int i = 0; i < A.n; ++i) {
-		referenceLinear[i] = toLinear(A.coords[i] - seedA);
-	}
-
-	return fullCompareRotateSeeds(referenceLinear, referenceLinearSeeds, B, rebaseB, compareB);
-}
-
-unsigned getRarestLocalType(const Tet& t) {
-	thread_local auto* count = new unsigned int[43451]();
-	auto code = t.encodeLocal();
-
-	for (int i = 0; i < t.n; ++i) {
-		count[code[i]]++;
-	}
-
-	unsigned min = 43450;
-	count[min] = t.n + 1;
-
-	for (int i = 0; i < t.n; ++i) {
-		if (count[code[i]] > count[min]) {
-			min = i;
-		}
-		count[code[i]] = 0;
-	}
-
-	return min;
-}
-
-unsigned getHighestLocalType(const Tet& t) {
-	const auto& x = t.encodeLocal();
-	unsigned m = 0;
-	for (int i = 0; i < t.n; ++i) {
-		if (x[i] > x[m]) {
-			m = i;
-		}
-	}
-	return x[m];
-}
-
-struct _compare {
-	std::array<int, 6> bounds;
+struct compare {
+	std::array<Pos::type, 6> bounds;
 
 	bool operator()(Pos a, Pos b) {
-		auto X = bounds[1] - bounds[0] + 1;
-		auto Z = bounds[5] - bounds[4] + 1;
+		Pos::boundType X = bounds[1] - bounds[0] + 1;
+		Pos::boundType Z = bounds[5] - bounds[4] + 1;
 
 		//translate and linearise
-		a = a - Pos{bounds[0], bounds[2], bounds[4]};
-		b = b - Pos{bounds[0], bounds[2], bounds[4]};
 		unsigned la = a.y * X * Z + a.z * X + a.x;
 		unsigned lb = b.y * X * Z + b.z * X + b.x;
 		return la < lb;
 	}
 };
 
+//0 = equal; 1 = a < b; 2 = a > b
+int compareBounds(const std::array<Pos::type, 6>& a, const std::array<Pos::type, 6>& b) {
+	auto AX = a[1] - a[0];
+	auto AY = a[3] - a[2];
+	auto AZ = a[5] - a[4];
+
+	auto BX = b[1] - b[0];
+	auto BY = b[3] - b[2];
+	auto BZ = b[5] - b[4];
+
+	if (AY > BY)
+		return 1;
+	else if (AY < BY)
+		return 2;
+	else if (AZ > BZ)
+		return 1;
+	else if (AZ < BZ)
+		return 2;
+	else if (AX > BX)
+		return 1;
+	else if (AX < BX)
+		return 2;
+
+	return 0;
+}
+
+unsigned maxComparisons = 0;
+
 // assumes a.n == b.n
+// returns a < b
 bool biggerBoundEncoding(const Tet& a, const Tet& b) {
 	//rebase a, b; sort their coordinates by their encoding index, return the bigger
 	auto boundsA = a.getBounds();
 	auto boundsB = b.getBounds();
 	auto seedA = Pos{boundsA[0], boundsA[2], boundsA[4]};
 	auto seedB = Pos{boundsB[0], boundsB[2], boundsB[4]};
+
+	int boundsUnequal = compareBounds(boundsA, boundsB);
+
+	if (boundsUnequal)
+		return boundsUnequal == 1;
+
+	maxComparisons++;
 
 	std::vector<Pos> A(a.n);
 	std::vector<Pos> B(b.n);
@@ -390,8 +87,8 @@ bool biggerBoundEncoding(const Tet& a, const Tet& b) {
 		B[i] = b.coords[i] - seedB;
 	}
 
-	std::sort(A.begin(), A.end(), _compare{boundsA});
-	std::sort(B.begin(), B.end(), _compare{boundsB});
+	std::sort(A.begin(), A.end(), compare{boundsA});
+	std::sort(B.begin(), B.end(), compare{boundsB});
 
 	//compare
 	for (int i = 0; i < a.n; ++i) {
@@ -469,63 +166,79 @@ Tet getMaxRotation(Tet t) {
 	return max;
 }
 
-unsigned hashBound(std::array<int, 6> bound) {
-	unsigned hash = 0;
-	hash = hash & ~0xFF0000 | ((bound[1] - bound[0]) & 0xFF) << 16;
-	hash = hash & ~0xFF00 | ((bound[3] - bound[2]) & 0xFF) << 8;
-	hash = hash & ~0xFF | (bound[5] - bound[4]);
-	return hash;
-}
-
 static unsigned long long collisions = 0;
+static unsigned long long comparisons = 0;
+static unsigned long long tables = 0;
+static unsigned long long items = 0;
 
 template<unsigned depth>
 struct NestedHash {
 	std::unordered_map<uint64_t, NestedHash<depth - 1>> map;
-	std::vector<std::vector<uint64_t>> store;
+	std::vector<uint64_t> store;
 
-	bool contains(const Tet& t) {
-		auto x = t.fullEncode();
+	inline static uint64_t loadhi = 0;
+	inline static uint64_t count = 0;
+	inline static uint64_t loadtot = 0;
+
+	static void print() {
+		std::cout << "Depth " << depth << " total load " << loadtot << " highest load " << loadhi << " count " << count
+				  << std::endl;
+		NestedHash<depth - 1>::print();
+	}
+
+	NestedHash() {
+		tables++;
+		count++;
+	}
+
+	static void reset() {
+		loadhi = 0;
+		count = 0;
+		tables = 0;
+		items = 0;
+		collisions = 0;
+		comparisons = 0;
+		loadtot = 0;
+		NestedHash<depth - 1>::reset();
+	}
+
+	bool contains(const Tet& t) const {
+		auto& x = t.volumeEncoding;
 		return lookup(x);
 	}
 
-	bool lookup(const std::vector<uint64_t>& encoding, unsigned bit = 0) {
+	bool lookup(const std::vector<uint64_t>& encoding, unsigned bit = 0) const {
 		if (bit == encoding.size()) {
-			for (int i = 0; i < store.size(); ++i) {
-				bool equal = true;
-				for (int j = 0; j < encoding.size(); ++j) {
-					if (store[i][j] != encoding[j]) {
-						equal = false;
-						break;
-					}
-				}
-				if (equal) return true;
+			for (unsigned long long i : store) {
+				comparisons++;
+				if (i == encoding[bit - 1]) return true;
 			}
 			return false;
 		}
 
-		if (map.count(encoding[bit]) <= 0) {
-			map.emplace(std::piecewise_construct, std::make_tuple(encoding[bit]), std::make_tuple());
+		if (map.count(encoding[bit]) <= 0)
 			return false;
-		}
-		return map[encoding[bit]].lookup(encoding, bit + 1);
+
+		return map.at(encoding[bit]).lookup(encoding, bit + 1);
 	}
 
 	void insert(const Tet& t) {
-		auto x = t.fullEncode();
+		auto& x = t.volumeEncoding;
 		add(x);
+		items++;
 	}
 
 	void add(const std::vector<uint64_t>& encoding, unsigned bit = 0) {
 		if (bit == encoding.size()) {
 			if (store.size() > 1)
 				collisions++;
-			store.push_back(encoding);
+			store.push_back(encoding[bit - 1]);
+			loadtot++;
+			if (store.size() > loadhi)
+				loadhi = store.size();
+			return;
 		}
 
-		if (map.count(encoding[bit]) <= 0) {
-			map.emplace(std::piecewise_construct, std::make_tuple(encoding[bit]), std::make_tuple());
-		}
 		map[encoding[bit]].add(encoding, bit + 1);
 	}
 };
@@ -534,85 +247,100 @@ template<>
 struct NestedHash<0> {
 	std::vector<std::vector<uint64_t>> store;
 
-	bool contains(const Tet& t) {
-		return lookup(t.fullEncode(), 0);
+	inline static uint64_t loadhi = 0;
+	inline static uint64_t count = 0;
+	inline static uint64_t loadtot = 0;
+
+	static void print() {
+		std::cout << "Depth " << 0 << " total load " << loadtot << " highest load " << loadhi << " count " << count
+				  << std::endl;
 	}
 
-	bool lookup(const std::vector<uint64_t>& encoding, unsigned) {
-		for (int i = 0; i < store.size(); ++i) {
-			bool equal = true;
-			for (int j = 0; j < encoding.size(); ++j) {
-				if (store[i][j] != encoding[j]) {
-					equal = false;
-					break;
-				}
-			}
-			if (equal) return true;
+	NestedHash() {
+		tables++;
+		count++;
+	}
+
+	static void reset() {
+		loadhi = 0;
+		count = 0;
+		tables = 0;
+		comparisons = 0;
+		items = 0;
+		collisions = 0;
+		loadtot = 0;
+	}
+
+	bool contains(const Tet& t) const {
+		return lookup(t.volumeEncoding, 0);
+	}
+
+	bool lookup(const std::vector<uint64_t>& encoding, unsigned) const {
+		for (const auto & i : store) {
+			comparisons++;
+			if (i == encoding) return true;
 		}
 		return false;
 	}
 
 	void insert(const Tet& t) {
-		add(t.fullEncode(), 0);
+		add(t.volumeEncoding, 0);
 	}
 
 	void add(const std::vector<uint64_t>& encoding, unsigned) {
 		if (store.size() > 1)
 			collisions++;
 		store.push_back(encoding);
+		loadtot++;
+		if (store.size() > loadhi)
+			loadhi = store.size();
 	}
 };
 
+bool compareTet(const Tet& a, const Tet& b) {
+	for (int i = 0; i < a.n; ++i) {
+		if (a.coords[i] != b.coords[i])
+			return false;
+	}
+	return true;
+}
+
 std::vector<Tet> generate(unsigned int i) {
 	if (i <= 1) {
-		return std::vector{Tet(i, std::vector<Pos>(1, {0, 0, 0}))};
+		return std::vector{Tet{1, {{0, 0, 0}}}};
 	}
 
 	auto previous = generate(i - 1);
 
-	NestedHash<6> cache;
+	constexpr int depth = 1;
+
+	long long int counter = 0;
+	maxComparisons = 0;
+
+	NestedHash<depth> cache;
 	std::vector<Tet> unique;
 
-	long long int skipped = 0;
-	long long int localSkip = 0;
-	long long int inverseSkip = 0;
-	long long int boundsSkip = 0;
-	long long int popSkip = 0;
-	long long int full = 0;
-	long long int fullFalse = 0;
-	long long int bloomSeen = 0;
-	long long int bloomUnseen = 0;
+	#pragma omp parallel for default(none) shared(previous, numThreads, cache, unique)
+	for (int j = 0; j < previous.size(); ++j) {
+		const auto& p = previous[j];
 
-	long long unsigned newShapeCount = 0;
-	long long int k = 0;
-	for (auto& p: previous) {
-		if (!(++k % 100)) {
-			std::cout << "n = " << i << ": " << (float) k / previous.size() << " with " << newShapeCount
-					  << " new unique shapes" << std::endl;
-			newShapeCount = 0;
-		}
-
-		auto faces = p.getFreeSpaces();
-
-		for (auto& f: faces) {
-			Tet build(p.insert(f));
+		for (auto& f: p.getFreeSpaces()) {
+			Tet build = p.insert(f);
 			Tet max = getMaxRotation(build);
+			max.volumeEncoding = max.volumeEncode();
 
+			#pragma omp critical
 			if (!cache.contains(max)) {
 				cache.insert(max);
-				unique.push_back(build);
-				newShapeCount++;
+				unique.push_back(max);
 			}
 		}
 	}
 
-	std::vector<Tet> allUnique = unique;
 
-	auto n = allUnique.size();
+	auto n = unique.size();
 	bool right;
 	switch (i) {
-		case 1:
-			right = "CORRECT";
 		case 2:
 			right = n == 1;
 			break;
@@ -661,29 +389,25 @@ std::vector<Tet> generate(unsigned int i) {
 	}
 
 	std::cout << "Total collisions: " << collisions << std::endl;
+	std::cout << "Total comparisons: " << comparisons << std::endl;
+	std::cout << "Total max-comparisons: " << maxComparisons << std::endl;
 	collisions = 0;
 
 	std::string msg = "INCORRECT";
 	if (right)
 		msg = "CORRECT";
 
-	std::cout << "n = " << i << "\n";
+	std::cout << "n = " << i << ": " << unique.size() << " unique shapes\n";
 	std::cout << msg << "\n";
-	std::cout << allUnique.size() << " unique shapes\n";
-	std::cout << "Full comparisons skipped: " << skipped << "\n";
-	std::cout
-			<< "Full comparisons computed: " << full << "\n"
-			<< "Full comparisons negative: " << (float) fullFalse / full * 100
-			<< "\nbloom seen: " << (float) bloomSeen
-			<< "\nbloom unseen: " << (float) bloomUnseen
-			<< "\ninverse: " << (float) inverseSkip / skipped * 100
-			<< "\nlocal: " << (float) localSkip / skipped * 100
-			<< "\npopulation: " << (float) popSkip / skipped * 100
-			<< "\nbounds: " << (float) boundsSkip / skipped * 100
-			<< std::endl;
 
+	NestedHash<depth>::print();
 
-	return allUnique;
+	std::cout << "Total tables: " << tables << " total items " << items << std::endl;
+	std::cout << "Average load: " << (float) items / tables << std::endl;
+	NestedHash<depth>::reset();
+
+	std::cout << std::endl;
+	return unique;
 
 }
 
@@ -711,22 +435,25 @@ std::vector<std::string> split(const std::string& s, char delimiter) {
 }
 
 std::vector<Tet> read(const std::string_view path) {
-	std::ifstream file(std::string{path});
-	std::string line;
-
+//	std::ifstream file(std::string{path});
+//	std::string line;
+//
 	std::vector<Tet> tets;
-	std::vector<Pos> blocks;
-	std::cout << "reading" << std::endl;
-	while (std::getline(file, line, '\n')) {
-		if (line.empty()) {
-			tets.emplace_back(blocks.size(), blocks);
-			blocks.clear();
-			continue;
-		}
-		auto spaced = split(line, ' ');
-		blocks.push_back({std::stoi(spaced[0]), std::stoi(spaced[1]), std::stoi(spaced[2])});
-	}
-
-	std::cout << "read " << tets.size() << " shapes";
+//	std::vector<Pos> blocks;
+//	std::cout << "reading" << std::endl;
+//	while (std::getline(file, line, '\n')) {
+//		if (line.empty()) {
+//			tets.emplace_back(blocks.size(), blocks);
+//			blocks.clear();
+//			continue;
+//		}
+//		auto spaced = split(line, ' ');
+//		blocks.push_back({static_cast<Pos::type>(std::stoi(spaced[0])),
+//						  static_cast<Pos::type>(std::stoi(spaced[1])),
+//						  static_cast<Pos::type>(std::stoi(spaced[2]))
+//						 });
+//	}
+//
+//	std::cout << "read " << tets.size() << " shapes";
 	return tets;
 }

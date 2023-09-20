@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 23)
 
 set(CMAKE_CXX_FLAGS -static-libstdc++)
 
+find_package(OpenMP REQUIRED)
+
 add_executable(tetris
         main.cpp
         include/poly.h
@@ -15,6 +17,8 @@ add_executable(tetris
         src/groups.cpp
         include/Tet.h
         src/Tet.cpp
-        include/bloom_filter.hpp)
+        )
 
 target_include_directories(tetris PUBLIC include)
+
+target_link_libraries(tetris PRIVATE OpenMP::OpenMP_CXX)
