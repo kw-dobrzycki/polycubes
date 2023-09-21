@@ -12,6 +12,7 @@
 #include "Tet.h"
 #include <omp.h>
 #include <list>
+#include <random>
 
 const Pos offsets[]{
 		{0,  1,  0},
@@ -297,6 +298,83 @@ struct NestedHash<0> {
 	}
 };
 
+uint64_t encodeBound(Pos bound) {
+	std::vector<Pos::type> v{bound.x, bound.y, bound.z};
+	std::sort(v.begin(), v.end());
+	bound.x = v[2];
+	bound.z = v[1];
+	bound.y = v[0];
+	uint64_t e = 0;
+	e |= bound.x << Pos::width * 2;
+	e |= bound.y << Pos::width;
+	e |= bound.z;
+	return e;
+}
+
+template<unsigned depth>
+struct BoundCache {
+
+	std::unordered_map<uint64_t, NestedHash<depth>> caches;
+
+	explicit BoundCache(unsigned n) : caches(allocCaches(n)) {}
+
+private:
+	std::unordered_map<uint64_t, NestedHash<depth>> allocCaches(Pos::type n) { //assert range
+		std::unordered_map<uint64_t, NestedHash<depth>> cache;
+		for (Pos::type i = 1; i < n + 1; ++i) {
+			for (Pos::type j = 1; j < n + 1; ++j) {
+				for (Pos::type k = 1; k < n + 1; ++k) {
+
+					//if enough volume for n pieces
+					if (i * j * k >= n) {
+
+						//get canonical orientation
+						auto encoding = encodeBound(Pos{i, j, k});
+						if (!caches.contains(encoding)) {
+							cache.insert({encoding, {}});
+						}
+					}
+				}
+			}
+		}
+		return cache;
+	}
+};
+
+struct LocalBoundCache {
+	std::unordered_map<uint64_t, std::vector<Tet>> caches;
+
+	LocalBoundCache(unsigned n) : caches(allocCaches(n)) {}
+
+	void clear() {
+		for (auto& [k, v]: caches) {
+			v.clear();
+		}
+	}
+
+private:
+	std::unordered_map<uint64_t, std::vector<Tet>> allocCaches(Pos::type n) { //assert range
+		std::unordered_map<uint64_t, std::vector<Tet>> cache;
+		for (Pos::type i = 1; i < n + 1; ++i) {
+			for (Pos::type j = 1; j < n + 1; ++j) {
+				for (Pos::type k = 1; k < n + 1; ++k) {
+
+					//if enough volume for n pieces
+					if (i * j * k >= n) {
+
+						//get canonical orientation
+						auto encoding = encodeBound(Pos{i, j, k});
+						if (!caches.contains(encoding)) {
+							cache.insert({encoding, {}});
+						}
+					}
+				}
+			}
+		}
+		return cache;
+	}
+};
+
 bool compareTet(const Tet& a, const Tet& b) {
 	for (int i = 0; i < a.n; ++i) {
 		if (a.coords[i] != b.coords[i])
@@ -317,7 +395,7 @@ std::vector<Tet> generate(unsigned int i) {
 	long long int counter = 0;
 	maxComparisons = 0;
 
-	NestedHash<depth> cache;
+	BoundCache<depth> cache(i);
 	std::vector<Tet> unique;
 
 	//pad previous to create empty work for distribution
@@ -328,32 +406,50 @@ std::vector<Tet> generate(unsigned int i) {
 
 	unsigned chunksize = previous.size() / numThreads;
 
-	std::vector<std::vector<Tet>> local(numThreads);
+	std::vector<LocalBoundCache> local(numThreads, i);
 
+	std::cout << "shuffling" << std::endl;
+
+//	std::random_device rd;
+//	std::mt19937 g(rd());
+//	std::shuffle(previous.begin(), previous.end(), g);
+
+	std::cout << "shuffled" << std::endl;
 	#pragma omp parallel default(none) shared(chunksize, previous, cache, local, unique, numThreads)
 	for (unsigned j = omp_get_thread_num() * chunksize; j < (omp_get_thread_num() + 1) * chunksize; ++j) {
 
 		const auto& p = previous[j];
-		std::vector<Tet>& results = local[omp_get_thread_num()];
+		LocalBoundCache& results = local[omp_get_thread_num()];
 		results.clear();
 
 		for (const auto& f: p.getFreeSpaces()) {
 			Tet build = p.insert(f);
 			Tet max = getMaxRotation(build);
 			max.volumeEncoding = max.volumeEncode();
-			if (!cache.contains(max)) {
-				results.push_back(max);
+
+			auto bounds = max.getBounds();
+			auto encoding = encodeBound({static_cast<Pos::type>(bounds[1] - bounds[0] + 1),
+										 static_cast<Pos::type>(bounds[3] - bounds[2] + 1),
+										 static_cast<Pos::type>(bounds[5] - bounds[4] + 1)
+										});
+			if (!encoding) continue;
+			const auto& c = cache.caches.at(encoding);
+
+			if (!c.contains(max)) {
+				results.caches.at(encoding).push_back(max);
 			}
 		}
 
 		#pragma omp barrier
 		#pragma omp single
 		{
-			for (int k = 0; k < numThreads; ++k) {
-				for (const auto& res: local[k]) {
-					if (!cache.contains(res)) {
-						cache.insert(res);
-						unique.push_back(res);
+			for (auto& [key, c]: cache.caches) { //todo make this parallel, move unique elsewhere
+				for (int m = 0; m < numThreads; ++m) {
+					for (const auto& res: local[m].caches.at(key)) {
+						if (!c.contains(res)) {
+							c.insert(res);
+							unique.push_back(res);
+						}
 					}
 				}
 			}
