@@ -14,14 +14,6 @@
 #include <list>
 #include <random>
 
-const Pos offsets[]{
-		{0,  1,  0},
-		{0,  0,  -1},
-		{1,  0,  0},
-		{0,  0,  1},
-		{-1, 0,  0},
-		{0,  -1, 0},
-};
 
 struct compare {
 	std::array<Pos::type, 6> bounds;
@@ -30,7 +22,7 @@ struct compare {
 		Pos::boundType X = bounds[1] - bounds[0] + 1;
 		Pos::boundType Z = bounds[5] - bounds[4] + 1;
 
-		//translate and linearise
+		//translate and linearise //todo perhaps this affects collisions - mixing encodings
 		unsigned la = a.y * X * Z + a.z * X + a.x;
 		unsigned lb = b.y * X * Z + b.z * X + b.x;
 		return la < lb;
@@ -167,222 +159,6 @@ Tet getMaxRotation(Tet t) {
 	return max;
 }
 
-static unsigned long long collisions = 0;
-static unsigned long long comparisons = 0;
-static unsigned long long tables = 0;
-static unsigned long long items = 0;
-
-template<unsigned depth>
-struct NestedHash {
-	std::unordered_map<uint64_t, NestedHash<depth - 1>> map;
-	std::vector<uint64_t> store;
-
-	inline static uint64_t loadhi = 0;
-	inline static uint64_t count = 0;
-	inline static uint64_t loadtot = 0;
-
-	static void print() {
-		std::cout << "Depth " << depth << " total load " << loadtot << " highest load " << loadhi << " count " << count
-				  << std::endl;
-		NestedHash<depth - 1>::print();
-	}
-
-	NestedHash() {
-		tables++;
-		count++;
-	}
-
-	static void reset() {
-		loadhi = 0;
-		count = 0;
-		tables = 0;
-		items = 0;
-		collisions = 0;
-		comparisons = 0;
-		loadtot = 0;
-		NestedHash<depth - 1>::reset();
-	}
-
-	bool contains(const Tet& t) const {
-		auto& x = t.volumeEncoding;
-		return lookup(x);
-	}
-
-	bool lookup(const std::vector<uint64_t>& encoding, unsigned bit = 0) const {
-		if (bit == encoding.size()) {
-			for (unsigned long long i: store) {
-				comparisons++;
-				if (i == encoding[bit - 1]) return true;
-			}
-			return false;
-		}
-
-		if (map.count(encoding[bit]) <= 0)
-			return false;
-
-		return map.at(encoding[bit]).lookup(encoding, bit + 1);
-	}
-
-	void insert(const Tet& t) {
-		auto& x = t.volumeEncoding;
-		add(x);
-		items++;
-	}
-
-	void add(const std::vector<uint64_t>& encoding, unsigned bit = 0) {
-		if (bit == encoding.size()) {
-			if (store.size() > 1)
-				collisions++;
-			store.push_back(encoding[bit - 1]);
-			loadtot++;
-			if (store.size() > loadhi)
-				loadhi = store.size();
-			return;
-		}
-
-		map[encoding[bit]].add(encoding, bit + 1);
-	}
-};
-
-template<>
-struct NestedHash<0> {
-	std::vector<std::vector<uint64_t>> store;
-
-	inline static uint64_t loadhi = 0;
-	inline static uint64_t count = 0;
-	inline static uint64_t loadtot = 0;
-
-	static void print() {
-		std::cout << "Depth " << 0 << " total load " << loadtot << " highest load " << loadhi << " count " << count
-				  << std::endl;
-	}
-
-	NestedHash() {
-		tables++;
-		count++;
-	}
-
-	static void reset() {
-		loadhi = 0;
-		count = 0;
-		tables = 0;
-		comparisons = 0;
-		items = 0;
-		collisions = 0;
-		loadtot = 0;
-	}
-
-	bool contains(const Tet& t) const {
-		return lookup(t.volumeEncoding, 0);
-	}
-
-	bool lookup(const std::vector<uint64_t>& encoding, unsigned) const {
-		for (const auto& i: store) {
-			comparisons++;
-			if (i == encoding) return true;
-		}
-		return false;
-	}
-
-	void insert(const Tet& t) {
-		add(t.volumeEncoding, 0);
-	}
-
-	void add(const std::vector<uint64_t>& encoding, unsigned) {
-		if (store.size() > 1)
-			collisions++;
-		store.push_back(encoding);
-		loadtot++;
-		if (store.size() > loadhi)
-			loadhi = store.size();
-	}
-};
-
-uint64_t encodeBound(Pos bound) {
-	std::vector<Pos::type> v{bound.x, bound.y, bound.z};
-	std::sort(v.begin(), v.end());
-	bound.x = v[2];
-	bound.z = v[1];
-	bound.y = v[0];
-	uint64_t e = 0;
-	e |= bound.x << Pos::width * 2;
-	e |= bound.y << Pos::width;
-	e |= bound.z;
-	return e;
-}
-
-template<unsigned depth>
-struct BoundCache {
-
-	std::unordered_map<uint64_t, NestedHash<depth>> caches;
-
-	explicit BoundCache(unsigned n) : caches(allocCaches(n)) {}
-
-private:
-	std::unordered_map<uint64_t, NestedHash<depth>> allocCaches(Pos::type n) { //assert range
-		std::unordered_map<uint64_t, NestedHash<depth>> cache;
-		for (Pos::type i = 1; i < n + 1; ++i) {
-			for (Pos::type j = 1; j < n + 1; ++j) {
-				for (Pos::type k = 1; k < n + 1; ++k) {
-
-					//if enough volume for n pieces
-					if (i * j * k >= n) {
-
-						//get canonical orientation
-						auto encoding = encodeBound(Pos{i, j, k});
-						if (!caches.contains(encoding)) {
-							cache.insert({encoding, {}});
-						}
-					}
-				}
-			}
-		}
-		return cache;
-	}
-};
-
-struct LocalBoundCache {
-	std::unordered_map<uint64_t, std::vector<Tet>> caches;
-
-	LocalBoundCache(unsigned n) : caches(allocCaches(n)) {}
-
-	void clear() {
-		for (auto& [k, v]: caches) {
-			v.clear();
-		}
-	}
-
-private:
-	std::unordered_map<uint64_t, std::vector<Tet>> allocCaches(Pos::type n) { //assert range
-		std::unordered_map<uint64_t, std::vector<Tet>> cache;
-		for (Pos::type i = 1; i < n + 1; ++i) {
-			for (Pos::type j = 1; j < n + 1; ++j) {
-				for (Pos::type k = 1; k < n + 1; ++k) {
-
-					//if enough volume for n pieces
-					if (i * j * k >= n) {
-
-						//get canonical orientation
-						auto encoding = encodeBound(Pos{i, j, k});
-						if (!caches.contains(encoding)) {
-							cache.insert({encoding, {}});
-						}
-					}
-				}
-			}
-		}
-		return cache;
-	}
-};
-
-bool compareTet(const Tet& a, const Tet& b) {
-	for (int i = 0; i < a.n; ++i) {
-		if (a.coords[i] != b.coords[i])
-			return false;
-	}
-	return true;
-}
-
 std::vector<Tet> generate(unsigned int i) {
 	if (i <= 1) {
 		return std::vector{Tet{1, {{0, 0, 0}}}};
@@ -395,8 +171,7 @@ std::vector<Tet> generate(unsigned int i) {
 	long long int counter = 0;
 	maxComparisons = 0;
 
-	BoundCache<depth> cache(i);
-	std::vector<Tet> unique;
+	BoundCache<depth> globalResult(i);
 
 	//pad previous to create empty work for distribution
 	unsigned fill = numThreads - previous.size() % numThreads;
@@ -415,12 +190,12 @@ std::vector<Tet> generate(unsigned int i) {
 //	std::shuffle(previous.begin(), previous.end(), g);
 
 	std::cout << "shuffled" << std::endl;
-	#pragma omp parallel default(none) shared(chunksize, previous, cache, local, unique, numThreads)
+	#pragma omp parallel default(none) shared(chunksize, previous, globalResult, local, numThreads)
 	for (unsigned j = omp_get_thread_num() * chunksize; j < (omp_get_thread_num() + 1) * chunksize; ++j) {
 
 		const auto& p = previous[j];
-		LocalBoundCache& results = local[omp_get_thread_num()];
-		results.clear();
+		LocalBoundCache& localResult = local[omp_get_thread_num()];
+		localResult.clear();
 
 		for (const auto& f: p.getFreeSpaces()) {
 			Tet build = p.insert(f);
@@ -432,23 +207,34 @@ std::vector<Tet> generate(unsigned int i) {
 										 static_cast<Pos::type>(bounds[3] - bounds[2] + 1),
 										 static_cast<Pos::type>(bounds[5] - bounds[4] + 1)
 										});
-			if (!encoding) continue;
-			const auto& c = cache.caches.at(encoding);
 
-			if (!c.contains(max)) {
-				results.caches.at(encoding).push_back(max);
+			//skip padded (artificial) work
+			//todo might be quicker to check iteration bound instead of fake work
+			if (!encoding) continue;
+
+			const auto& c = globalResult.at(encoding);
+
+			//if not found in the previous iteration
+			if (!c.contains(max.volumeEncoding)) {
+				localResult.at(encoding).push_back(max);
 			}
 		}
 
+		//write to global result - check for dups between local results
 		#pragma omp barrier
 		#pragma omp single
 		{
-			for (auto& [key, c]: cache.caches) { //todo make this parallel, move unique elsewhere
-				for (int m = 0; m < numThreads; ++m) {
-					for (const auto& res: local[m].caches.at(key)) {
-						if (!c.contains(res)) {
-							c.insert(res);
-							unique.push_back(res);
+			//caches with different bounds can write simultaneously
+			#pragma parallel for
+			for (int k = 0; k < globalResult.keys.size(); ++k) {
+				auto key = globalResult.keys[k];
+				auto& bucket = globalResult.at(key);
+
+				//get result for that bound from each local result
+				for (int t = 0; t < numThreads; ++t){
+					for (const auto& res: local[t].at(key)) {
+						if (!bucket.contains(res.volumeEncoding)){
+							bucket.insert(res.volumeEncoding);
 						}
 					}
 				}
@@ -456,6 +242,8 @@ std::vector<Tet> generate(unsigned int i) {
 		}
 		//implied barrier
 	}
+
+	std::vector<Tet> unique = globalResult.collect();
 
 	auto n = unique.size();
 	bool right;
