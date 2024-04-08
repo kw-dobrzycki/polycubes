@@ -9,7 +9,7 @@
 #include <vector>
 #include <set>
 #include <array>
-#include <algorithm>
+#include <cassert>
 
 template<class T>
 T ceildiv(T a, T b) {
@@ -20,7 +20,8 @@ template<class T>
 struct BasicEncoding {
 
 	unsigned n;
-	std::vector<T> encoding;
+	size_t size;
+	T* encoding;
 
 	struct Index {
 		size_t i, j;
@@ -32,7 +33,9 @@ struct BasicEncoding {
 	}
 
 	explicit BasicEncoding(unsigned n)
-			: n(n), encoding((n * n * n + (sizeof(T) * 8 - 1)) / (sizeof(T) * 8)) {
+			: n(n),
+			  size(ceildiv((size_t) n * n * n, sizeof(T) * 8)),
+			  encoding(new T[size]{}) {
 	}
 
 	BasicEncoding(const Pos* tet, unsigned n)
@@ -42,8 +45,13 @@ struct BasicEncoding {
 		}
 	}
 
+	~BasicEncoding() {
+		delete[] encoding;
+	}
+
 	bool operator<(const BasicEncoding& other) const {
-		for (int i = encoding.size() - 1; i >= 0; --i) {
+		assert(size == other.size);
+		for (int i = size - 1; i >= 0; --i) {
 			if (encoding[i] < other.encoding[i]) return true;
 			if (encoding[i] > other.encoding[i]) return false;
 		}
@@ -51,7 +59,8 @@ struct BasicEncoding {
 	}
 
 	bool operator>(const BasicEncoding& other) const {
-		for (int i = encoding.size() - 1; i >= 0; --i) {
+		assert(size == other.size);
+		for (int i = size - 1; i >= 0; --i) {
 			if (encoding[i] > other.encoding[i]) return true;
 			if (encoding[i] < other.encoding[i]) return false;
 		}
@@ -59,7 +68,14 @@ struct BasicEncoding {
 	}
 
 	bool operator==(const BasicEncoding& other) const {
-		return encoding == other.encoding;
+		assert(size == other.size);
+		return memcmp(encoding, other.encoding, sizeof(T) * size);
+	}
+
+	void operator()(const Pos* tet) {
+		for (int i = 0; i < n; ++i) {
+			set(tet[i]);
+		}
 	}
 
 	void set(const Pos& p) {
@@ -70,6 +86,12 @@ struct BasicEncoding {
 	void unset(const Pos& p) {
 		Index i = indexOf(p, n);
 		encoding[i.i] &= ~(0b1 << i.j);
+	}
+
+	void reset() {
+		for (int i = 0; i < size; ++i) {
+			encoding[i] = (T) 0;
+		}
 	}
 };
 
@@ -87,60 +109,43 @@ Pos findMin(const Pos* tet, unsigned n) {
 }
 
 //returns E(A) > E(B) = 1
-int compareTet(const Pos* tetA,
-			   const Pos* tetB,
-			   unsigned n) {
+template<unsigned n>
+int compareTet(Tet<n>& tetA, Tet<n>& tetB) {
 
-	Pos boundA = findMin(tetA, n);
-	Pos boundB = findMin(tetB, n);
+	thread_local EncodeType e1(n);
+	thread_local EncodeType e2(n);
+	e1.reset();
+	e2.reset();
 
-	std::vector<Pos> originA(n);
-	std::vector<Pos> originB(n);
-	for (int i = 0; i < n; ++i) {
-		originA[i] = tetA[i] - boundA;
-		originB[i] = tetB[i] - boundB;
-	}
+	Pos boundA = findMin(tetA.units, n);
+	Pos boundB = findMin(tetB.units, n);
 
-	EncodeType e1(originA.data(), n);
-	EncodeType e2(originB.data(), n);
+	translate(tetA.units, n, ~boundA);
+	translate(tetB.units, n, ~boundB);
+
+	e1(tetA.units);
+	e2(tetB.units);
+
 	if (e1 > e2) return 1;
 	if (e1 < e2) return -1;
 	return 0;
-
-	auto flatten = [i = n](const Pos& p) {
-		return p.y * i * i + p.z * i + p.x;
-	};
-
-	auto compare = [&](const Pos& a, const Pos& b) {
-		return flatten(a) > flatten(b);
-	};
-
-	std::sort(originA.begin(), originA.end(), compare);
-	std::sort(originB.begin(), originB.end(), compare);
-
-	for (int i = 0; i < n; ++i) {
-		auto f1 = flatten(originA[i]);
-		auto f2 = flatten(originB[i]);
-		if (f1 > f2) return 1;
-		if (f1 < f2) return -1;
-	}
-	return 0;
 }
 
-void orient(Pos* tet, unsigned n) {
+template<unsigned n>
+void orient(Tet<n>& tet) {
 	//rotate the tet 24 times and keep a current max
 	//at each rotation, compare the bounds to the current max (y > z > x).
 	//if bounds are equal, translate to the unit with min x,y,z to put into positive octant
 	//then sort all units within both tets
 	//iterate and compare each unit's x,y,z.
 
-	Pos* max = new Pos[n]{};
-	memcpy(max, tet, sizeof(Pos) * n);
+	thread_local Tet<n> max{};
+	max = tet;
 
 	auto spinY = [&]() {
-		rotY(tet, n);
-		if (compareTet(tet, max, n) == 1) {
-			memcpy(max, tet, sizeof(Pos) * n);
+		rotY(tet.units, n);
+		if (compareTet(tet, max) == 1) {
+			max = tet;
 		}
 	};
 
@@ -150,40 +155,36 @@ void orient(Pos* tet, unsigned n) {
 	}
 
 	//back on top
-	rotX(tet, n);
+	rotX(tet.units, n);
 	for (int j = 0; j < 4; ++j) {
 		spinY();
 	}
 
 	//left on top
-	rotZ(tet, n);
+	rotZ(tet.units, n);
 	for (int j = 0; j < 4; ++j) {
 		spinY();
 	}
 
 	//front on top
-	rotZ(tet, n);
+	rotZ(tet.units, n);
 	for (int j = 0; j < 4; ++j) {
 		spinY();
 	}
 
 	//right on top
-	rotZ(tet, n);
+	rotZ(tet.units, n);
 	for (int j = 0; j < 4; ++j) {
 		spinY();
 	}
 
 	//bottom on top
-	rotX(tet, n);
+	rotX(tet.units, n);
 	for (int j = 0; j < 4; ++j) {
 		spinY();
 	}
 
-	Pos min = findMin(max, n);
-
-	translate(max, n, ~min); //ensure that the final result is in positive octant
-	memcpy(tet, max, sizeof(Pos) * n);
-	delete[] max;
+	tet = max;
 }
 
 #endif //TETRIS_POLY_H

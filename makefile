@@ -31,4 +31,4 @@ build:
 	mkdir $(BUILDDIR)
 
 upload:
-	rsync -avz . dgzc36@hamilton8.dur.ac.uk:polycube_growth --exclude-from=./exclude --delete
+	rsync -avz . dgzc36@hamilton8.dur.ac.uk:polycube_growth --exclude-from=./exclude

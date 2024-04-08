@@ -6,33 +6,35 @@
 
 static auto last = std::chrono::high_resolution_clock::now();
 
-bool connected(const Pos* tet, unsigned n) {
-	std::vector<bool> seen(n);
-	std::vector<size_t> q({0});
+template<unsigned n>
+bool connected(const Tet<n>& tet) {
 
-	while (!q.empty()) {
-		size_t i = q.back();
-		q.pop_back();
-		Pos current = tet[i];
+	thread_local size_t stack[n]{};
+	thread_local size_t pointer;
+	pointer = 1;
+
+	thread_local bool seen[n]{};
+	for (int i = 0; i < n; ++i) {
+		seen[i] = 0;
+	}
+
+	while (pointer > 0) {
+		size_t i = stack[--pointer];
+		const Pos& ui = tet.units[i];
 		if (seen[i]) continue;
 		seen[i] = true;
 
 		for (int j = 0; j < n; ++j) {
-			Pos d = current - tet[j];
-			bool touch = false;
-			for (const auto& k: offsets) {
-				if (d == k) {
-					touch = true;
-					break;
-				}
+			const Pos& uj = tet.units[j];
+			if ((uj - ui).isUnit() && !seen[j]) {
+				stack[pointer++] = j;
 			}
-			if (touch && !seen[j])
-				q.push_back(j);
 		}
 	}
 
-	for (auto&& i: seen)
-		if (!i) return false;
+	for (int i = 0; i < n; ++i) {
+		if (!seen[i]) return false;
+	}
 
 	return true;
 }
@@ -43,35 +45,35 @@ std::vector<Tet<n>> generate() {
 
 	std::vector<Tet<n>> global;
 
-//	#pragma omp parallel for default(none) shared(previous, global)
+	#pragma omp parallel for default(none) shared(previous, global)
 	for (int j = 0; j < previous.size(); ++j) {
-		const auto& parent = previous[j];
+		auto& parent = previous[j];
 
 		std::vector<Tet<n>> local;
 
 		for (auto& space: parent.getFreeSpaces()) {
 
 			Tet<n> child = parent.insert(space);
-			orient(child.units, n);
+			orient<n>(child);
 
 			Tet<n - 1> max_stem;
 
 			for (unsigned i = 0; i < n; ++i) {
 
 				Tet<n - 1> stem = child.remove(i);
-				if (!connected(stem.units, n - 1)) continue;
+				if (!connected<n - 1>(stem)) continue;
 
-				orient(stem.units, n - 1);
+				orient<n - 1>(stem);
 
-				if (compareTet(stem.units, max_stem.units, n - 1) == 1) {
+				if (compareTet<n - 1>(stem, max_stem) == 1) {
 					max_stem = stem;
 				}
 			}
 
-			if (compareTet(parent.units, max_stem.units, n - 1) == 0) {
+			if (compareTet<n - 1>(parent, max_stem) == 0) {
 				bool seen = false;
 				for (int i = 0; i < local.size(); ++i) {
-					if (compareTet(local[i].units, child.units, n) == 0) {
+					if (compareTet<n>(local[i], child) == 0) {
 						seen = true;
 						break;
 					}
@@ -80,7 +82,7 @@ std::vector<Tet<n>> generate() {
 			}
 		}
 
-//		#pragma omp critical
+		#pragma omp critical
 		{
 			global.insert(global.end(), local.begin(), local.end());
 		}
@@ -106,7 +108,7 @@ std::vector<Tet<0>> generate() {
 
 int main() {
 	std::cout << "Threads: " << omp_get_max_threads() << std::endl;
-	auto results = generate<9>();
+	auto results = generate<10>();
 	std::cout << results.size() << std::endl;
 	return 0;
 }

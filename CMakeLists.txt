@@ -3,7 +3,7 @@ project(tetris)
 
 set(CMAKE_CXX_STANDARD 23)
 
-set(CMAKE_CXX_FLAGS "-static -fopenmp")
+set(CMAKE_CXX_FLAGS "-static -fopenmp -ggdb")
 
 add_executable(tetris
         main.cpp

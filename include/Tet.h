@@ -33,6 +33,10 @@ struct Pos {
 	bool operator==(const Pos& v) const {
 		return x == v.x && y == v.y && z == v.z;
 	}
+
+	bool isUnit() const {
+		return x * x + y * y + z * z == 1;
+	}
 };
 
 Pos offsets[6]{
