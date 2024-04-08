@@ -5,57 +5,135 @@
 #ifndef TETRIS_TET_H
 #define TETRIS_TET_H
 
-#include "groups.h"
-#include <algorithm>
-#include <sstream>
-#include <fstream>
-#include <iostream>
-#include <array>
-#include <set>
 #include <vector>
-#include "poly.h"
 
-struct Tet {
+struct Pos {
+	int x, y, z;
 
-	unsigned int n;
+	Pos operator+(const Pos& v) const {
+		return {x + v.x, y + v.y, z + v.z};
+	}
 
-	std::vector<uint32_t> pieces;
-	std::vector<Pos> coords;
-	std::vector<int> neighbours;
-	std::vector<uint8_t> population;
+	Pos operator-(const Pos& v) const {
+		return {x - v.x, y - v.y, z - v.z};
+	}
 
-	Tet(unsigned int n, const std::vector<Pos>& coordinates);
+	Pos& operator+=(const Pos& v) {
+		x += v.x;
+		y += v.y;
+		z += v.z;
+		return *this;
+	}
 
-	/**
-	 * DOES NOT MAINTAIN CONSISTENCY
-	 */
-	Tet(unsigned int n, const std::vector<uint32_t>& pieces, const std::vector<Pos>& coords,
-		const std::vector<int>& neighbours, const std::vector<uint8_t>& population);
+	Pos operator~() const {
+		return {-x, -y, -z};
+	}
 
-	Tet& rotX(unsigned i = 1);
-
-	Tet& rotY(unsigned i = 1);
-
-	Tet& rotZ(unsigned i = 1);
-
-	std::vector<Pos> getFreeSpaces() const;
-
-	Tet insert(const Pos& block) const;
-
-	std::vector<unsigned> encodeLocal() const;
-
-	std::vector<unsigned> encodeSelf() const;
-
-	std::array<uint32_t, 128> boundEncode() const;
-
-	std::vector<uint64_t> fullEncode() const;
-
-	void print() const;
-
-	std::array<int, 6> getBounds() const;
-
-	Tet getComplement() const;
+	bool operator==(const Pos& v) const {
+		return x == v.x && y == v.y && z == v.z;
+	}
 };
 
+Pos offsets[6]{
+		{0,  1,  0},
+		{0,  0,  1},
+		{1,  0,  0},
+		{0,  0,  -1},
+		{-1, 0,  0},
+		{0,  -1, 0}
+};
+
+void translate(Pos* tet, unsigned n, const Pos& p) {
+	for (int i = 0; i < n; ++i) {
+		tet[i] += p;
+	}
+}
+
+void rotX(Pos* tet, unsigned n, unsigned i = 1) {
+	for (int j = 0; j < n; ++j) {
+		if (!(i % 2)) return;
+		auto t = tet[j].z;
+		tet[j].z = -tet[j].y;
+		tet[j].y = t;
+	}
+}
+
+void rotY(Pos* tet, unsigned n, unsigned i = 1) {
+	for (int j = 0; j < n; ++j) {
+		if (!(i % 2)) return;
+		auto t = tet[j].x;
+		tet[j].x = -tet[j].z;
+		tet[j].z = t;
+	}
+}
+
+void rotZ(Pos* tet, unsigned n, unsigned i = 1) {
+	for (int j = 0; j < n; ++j) {
+		if (!(i % 2)) return;
+		auto t = tet[j].y;
+		tet[j].y = -tet[j].x;
+		tet[j].x = t;
+	}
+}
+
+
+template<unsigned n>
+struct Tet {
+
+	Pos units[n]{};
+
+	Tet() = default;
+
+	explicit Tet(Pos* points) {
+		memcpy(units, points, sizeof(Pos) * n);
+	}
+
+	std::vector<Pos> getFreeSpaces() const {
+		std::vector<Pos> spaces;
+		for (int i = 0; i < n; ++i) {
+			for (const auto& opp: offsets) {
+				Pos space = units[i] + opp;
+				bool taken = false;
+
+				for (const auto& unit: units) {
+					if (space == unit) {
+						taken = true;
+						break;
+					}
+				}
+
+				if (taken) continue;
+
+				for (const auto& k: spaces) {
+					if (space == k) {
+						taken = true;
+						break;
+					}
+				}
+
+				if (!taken) spaces.push_back(space);
+			}
+		}
+		return spaces;
+	}
+
+	Tet<n + 1> insert(const Pos& unit) const {
+		Pos points[n + 1]{};
+		memcpy(points, units, sizeof(Pos) * n);
+		points[n] = unit;
+		return Tet<n + 1>(points);
+	}
+
+	Tet<n - 1> remove(size_t i) const {
+		Pos points[n - 1]{};
+		memcpy(points, units, sizeof(Pos) * i);
+		memcpy(points + i, units + i + 1, sizeof(Pos) * (n - i - 1));
+		return Tet<n - 1>(points);
+	}
+};
+
+template<>
+struct Tet<0> {
+};
 
 #endif //TETRIS_TET_H

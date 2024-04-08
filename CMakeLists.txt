@@ -8,13 +8,7 @@ set(CMAKE_CXX_FLAGS -static-libstdc++)
 add_executable(tetris
         main.cpp
         include/poly.h
-        include/relative.h
-        src/relative.cpp
-        tests/test.cpp
-        include/groups.h
-        src/groups.cpp
         include/Tet.h
-        src/Tet.cpp
-        include/bloom_filter.hpp)
+)
 
 target_include_directories(tetris PUBLIC include)
