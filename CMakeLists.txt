@@ -3,7 +3,7 @@ project(tetris)
 
 set(CMAKE_CXX_STANDARD 23)
 
-set(CMAKE_CXX_FLAGS -static-libstdc++)
+set(CMAKE_CXX_FLAGS "-static -fopenmp")
 
 add_executable(tetris
         main.cpp
@@ -11,4 +11,7 @@ add_executable(tetris
         include/Tet.h
 )
 
+find_package(OpenMP REQUIRED)
+
 target_include_directories(tetris PUBLIC include)
+target_link_libraries(tetris PRIVATE OpenMP::OpenMP_CXX)

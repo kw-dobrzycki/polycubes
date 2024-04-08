@@ -1,8 +1,10 @@
 #include <iostream>
 #include "Tet.h"
 #include "poly.h"
+#include <omp.h>
+#include <chrono>
 
-using EncodeType = BasicEncoding<unsigned>;
+static auto last = std::chrono::high_resolution_clock::now();
 
 bool connected(const Pos* tet, unsigned n) {
 	std::vector<bool> seen(n);
@@ -41,8 +43,9 @@ std::vector<Tet<n>> generate() {
 
 	std::vector<Tet<n>> global;
 
-	for (auto& parent: previous) {
-		EncodeType parent_encoding(parent.units, n - 1);
+//	#pragma omp parallel for default(none) shared(previous, global)
+	for (int j = 0; j < previous.size(); ++j) {
+		const auto& parent = previous[j];
 
 		std::vector<Tet<n>> local;
 
@@ -50,7 +53,6 @@ std::vector<Tet<n>> generate() {
 
 			Tet<n> child = parent.insert(space);
 			orient(child.units, n);
-			EncodeType child_encoding(child.units, n);
 
 			Tet<n - 1> max_stem;
 
@@ -61,16 +63,15 @@ std::vector<Tet<n>> generate() {
 
 				orient(stem.units, n - 1);
 
-				if (orient_compare(stem.units, max_stem.units, n - 1)) {
+				if (compareTet(stem.units, max_stem.units, n - 1) == 1) {
 					max_stem = stem;
 				}
 			}
 
-			if (parent_encoding == EncodeType(max_stem.units, n - 1)) {
+			if (compareTet(parent.units, max_stem.units, n - 1) == 0) {
 				bool seen = false;
 				for (int i = 0; i < local.size(); ++i) {
-					auto e = EncodeType (local[i].units, n);
-					if (child_encoding == EncodeType(local[i].units, n)) {
+					if (compareTet(local[i].units, child.units, n) == 0) {
 						seen = true;
 						break;
 					}
@@ -79,9 +80,16 @@ std::vector<Tet<n>> generate() {
 			}
 		}
 
-		global.insert(global.end(), local.begin(), local.end());
+//		#pragma omp critical
+		{
+			global.insert(global.end(), local.begin(), local.end());
+		}
 	}
-	std::cout << "N=" << n << ": " << global.size() << std::endl;
+	std::cout << "N=" << n << ": " << global.size() << " time "
+			  << std::chrono::duration_cast<std::chrono::milliseconds>(
+					  std::chrono::high_resolution_clock::now() - last).count() << "ms"
+			  << std::endl;
+	last = std::chrono::high_resolution_clock::now();
 	return global;
 }
 
@@ -97,7 +105,8 @@ std::vector<Tet<0>> generate() {
 };
 
 int main() {
-	auto results = generate<10>();
+	std::cout << "Threads: " << omp_get_max_threads() << std::endl;
+	auto results = generate<9>();
 	std::cout << results.size() << std::endl;
 	return 0;
 }

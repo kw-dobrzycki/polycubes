@@ -6,9 +6,10 @@
 #define TETRIS_TET_H
 
 #include <vector>
+#include <cstring>
 
 struct Pos {
-	int x, y, z;
+	int x{}, y{}, z{};
 
 	Pos operator+(const Pos& v) const {
 		return {x + v.x, y + v.y, z + v.z};
@@ -115,6 +116,13 @@ struct Tet {
 			}
 		}
 		return spaces;
+	}
+
+	bool operator!=(const Tet& other) const {
+		for (int i = 0; i < n; ++i) {
+			if (units[i] != other.units[i]) return true;
+		}
+		return false;
 	}
 
 	Tet<n + 1> insert(const Pos& unit) const {

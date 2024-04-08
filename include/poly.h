@@ -11,9 +11,6 @@
 #include <array>
 #include <algorithm>
 
-extern const unsigned* const selfGroupOf;
-extern const unsigned* const localGroupOf;
-
 template<class T>
 T ceildiv(T a, T b) {
 	return ((a + b - 1) / b);
@@ -21,26 +18,22 @@ T ceildiv(T a, T b) {
 
 template<class T>
 struct BasicEncoding {
-	std::vector<T> encoding;
+
 	unsigned n;
+	std::vector<T> encoding;
 
 	struct Index {
 		size_t i, j;
 	};
 
 	static Index indexOf(const Pos& p, unsigned n) {
-		size_t ints = ceildiv((size_t) n * n * n, sizeof(T) * 8);
-		//x, z, y
 		size_t index = p.y * n * n + p.z * n + p.x;
 		return {index / (sizeof(T) * 8), index % (sizeof(T) * 8)};
 	}
 
 	explicit BasicEncoding(unsigned n)
-			: n(n) {
-		for (unsigned i = 0; i < ceildiv((size_t) n * n * n, sizeof(T) * 8); ++i) {
-			encoding.push_back(0);
-		}
-	};
+			: n(n), encoding((n * n * n + (sizeof(T) * 8 - 1)) / (sizeof(T) * 8)) {
+	}
 
 	BasicEncoding(const Pos* tet, unsigned n)
 			: BasicEncoding(n) {
@@ -50,15 +43,17 @@ struct BasicEncoding {
 	}
 
 	bool operator<(const BasicEncoding& other) const {
-		for (int i = 0; i < encoding.size; ++i) {
+		for (int i = encoding.size() - 1; i >= 0; --i) {
 			if (encoding[i] < other.encoding[i]) return true;
+			if (encoding[i] > other.encoding[i]) return false;
 		}
 		return false;
 	}
 
 	bool operator>(const BasicEncoding& other) const {
-		for (int i = 0; i < encoding.size(); ++i) {
+		for (int i = encoding.size() - 1; i >= 0; --i) {
 			if (encoding[i] > other.encoding[i]) return true;
+			if (encoding[i] < other.encoding[i]) return false;
 		}
 		return false;
 	}
@@ -78,72 +73,58 @@ struct BasicEncoding {
 	}
 };
 
-struct Bound {
-	Pos min, max;
+using EncodeType = BasicEncoding<unsigned>;
 
-	operator Pos*() {
-		return &min;
-	}
-};
-
-Bound find_bound(const Pos* tet, unsigned n) {
-	Bound bound{*tet, *tet};
+Pos findMin(const Pos* tet, unsigned n) {
+	Pos corner{*tet};
 	//find the bound
 	for (int i = 0; i < n; ++i) {
-		bound.min.x = std::min(bound.min.x, tet[i].x);
-		bound.min.y = std::min(bound.min.y, tet[i].y);
-		bound.min.z = std::min(bound.min.z, tet[i].z);
-		bound.max.x = std::max(bound.max.x, tet[i].x);
-		bound.max.y = std::max(bound.max.y, tet[i].y);
-		bound.max.z = std::max(bound.max.z, tet[i].z);
+		corner.x = std::min(corner.x, tet[i].x);
+		corner.y = std::min(corner.y, tet[i].y);
+		corner.z = std::min(corner.z, tet[i].z);
 	}
-	return bound;
+	return corner;
 }
 
-//returns E(A) > E(B)
-bool orient_compare(const Pos* tetA,
-					const Pos* tetB,
-					unsigned n) {
+//returns E(A) > E(B) = 1
+int compareTet(const Pos* tetA,
+			   const Pos* tetB,
+			   unsigned n) {
 
-	Bound boundA(find_bound(tetA, n));
-	Bound boundB(find_bound(tetB, n));
+	Pos boundA = findMin(tetA, n);
+	Pos boundB = findMin(tetB, n);
 
-	Pos rangeA = boundA.max - boundA.min;
-	Pos rangeB = boundB.max - boundB.min;
-
-	if (rangeA.y > rangeB.y) return true;
-	if (rangeA.y < rangeB.y) return false;
-	if (rangeA.z > rangeB.z) return true;
-	if (rangeA.z < rangeB.z) return false;
-	if (rangeA.x > rangeB.x) return true;
-	if (rangeA.x < rangeB.x) return false;
-
-	std::vector<Pos> sortedA(n);
-	std::vector<Pos> sortedB(n);
+	std::vector<Pos> originA(n);
+	std::vector<Pos> originB(n);
 	for (int i = 0; i < n; ++i) {
-		sortedA[i] = tetA[i] - boundA.min;
-		sortedB[i] = tetB[i] - boundB.min;
+		originA[i] = tetA[i] - boundA;
+		originB[i] = tetB[i] - boundB;
 	}
+
+	EncodeType e1(originA.data(), n);
+	EncodeType e2(originB.data(), n);
+	if (e1 > e2) return 1;
+	if (e1 < e2) return -1;
+	return 0;
 
 	auto flatten = [i = n](const Pos& p) {
 		return p.y * i * i + p.z * i + p.x;
 	};
 
 	auto compare = [&](const Pos& a, const Pos& b) {
-		return flatten(a) < flatten(b);
+		return flatten(a) > flatten(b);
 	};
 
-	std::sort(sortedA.begin(), sortedA.end(), compare);
-	std::sort(sortedB.begin(), sortedB.end(), compare);
+	std::sort(originA.begin(), originA.end(), compare);
+	std::sort(originB.begin(), originB.end(), compare);
 
 	for (int i = 0; i < n; ++i) {
-		auto f1 = flatten(sortedA[i]);
-		auto f2 = flatten(sortedB[i]);
-		if (f1 > f2) return true;
-		if (f1 < f2) return false;
+		auto f1 = flatten(originA[i]);
+		auto f2 = flatten(originB[i]);
+		if (f1 > f2) return 1;
+		if (f1 < f2) return -1;
 	}
-
-	return false;
+	return 0;
 }
 
 void orient(Pos* tet, unsigned n) {
@@ -158,7 +139,7 @@ void orient(Pos* tet, unsigned n) {
 
 	auto spinY = [&]() {
 		rotY(tet, n);
-		if (orient_compare(tet, max, n)) {
+		if (compareTet(tet, max, n) == 1) {
 			memcpy(max, tet, sizeof(Pos) * n);
 		}
 	};
@@ -198,9 +179,9 @@ void orient(Pos* tet, unsigned n) {
 		spinY();
 	}
 
-	Bound maxBound = find_bound(max, n);
+	Pos min = findMin(max, n);
 
-	translate(max, n, ~maxBound.min); //ensure that the final result is in positive octant
+	translate(max, n, ~min); //ensure that the final result is in positive octant
 	memcpy(tet, max, sizeof(Pos) * n);
 	delete[] max;
 }

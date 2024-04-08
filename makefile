@@ -1,35 +1,34 @@
 CC = g++
-TARGET = main
+TARGET = polycube
 TEST = test
-LIB = libpolycube.a
-CFLAGS = -I$(HDIR) -std=c++2a -O3
+LIB = polycube
+CFLAGS = -I$(HDIR) -std=c++2a -O3 -fopenmp
 
 # directories for library, this program is only main.
 SRCDIR = src
 HDIR = include
-OBJDIR = build
+BUILDDIR = build
 
 SRC := $(wildcard $(SRCDIR)/*.cpp)
-OBJ := $(patsubst $(SRCDIR)/%.cpp, $(OBJDIR)/%.o, $(SRC))
+OBJ := $(patsubst $(SRCDIR)/%.cpp, $(BUILDDIR)/%.o, $(SRC))
 HEADERS := $(wildcard $(HDIR)/*.h) $(wildcard $(SRCDIR)/*.h)
 
 .PHONY: all test library clean
 
 all: main.cpp library
-	$(CC) -o $(TARGET) $< -L. -lpolycube $(CFLAGS)
+	$(CC) -o $(TARGET) $< -L$(BUILDDIR) -l$(LIB) $(CFLAGS)
 
-library: $(OBJ)
-	ar rcs -o $(LIB) $(OBJ)
+library: $(OBJ) build
+	ar rcs -o $(BUILDDIR)/lib$(LIB).a $(OBJ)
 
-$(OBJDIR)/%.o: $(SRCDIR)/%.cpp $(HEADERS) build
+$(BUILDDIR)/%.o: $(SRCDIR)/%.cpp $(HEADERS) build
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-test: tests/test.cpp library
-	$(CC) -o $@ $< -L. -l$(LIB) $(CFLAGS)
-	./$@
-
 clean:
-	rm -rf $(TARGET) $(TEST) $(OBJDIR) $(LIB)
+	rm -rf $(TARGET) $(TEST) $(BUILDDIR) $(LIB)
 
 build:
-	mkdir $(OBJDIR)
+	mkdir $(BUILDDIR)
+
+upload:
+	rsync -avz . dgzc36@hamilton8.dur.ac.uk:polycube_growth --exclude-from=./exclude --delete
