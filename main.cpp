@@ -45,7 +45,7 @@ std::vector<Tet<n>> generate() {
 
 	std::vector<Tet<n>> global;
 
-	#pragma omp parallel for default(none) shared(previous, global)
+//	#pragma omp parallel for default(none) shared(previous, global)
 	for (int j = 0; j < previous.size(); ++j) {
 		auto& parent = previous[j];
 
@@ -54,7 +54,6 @@ std::vector<Tet<n>> generate() {
 		for (auto& space: parent.getFreeSpaces()) {
 
 			Tet<n> child = parent.insert(space);
-			orient<n>(child);
 
 			Tet<n - 1> max_stem;
 
@@ -65,15 +64,16 @@ std::vector<Tet<n>> generate() {
 
 				orient<n - 1>(stem);
 
-				if (compareTet<n - 1>(stem, max_stem) == 1) {
+				if (compareFixed<n - 1>(stem, max_stem) == 1) {
 					max_stem = stem;
 				}
 			}
 
-			if (compareTet<n - 1>(parent, max_stem) == 0) {
+			if (compareFixed<n - 1>(parent, max_stem) == 0) {
+				orient<n>(child);
 				bool seen = false;
 				for (int i = 0; i < local.size(); ++i) {
-					if (compareTet<n>(local[i], child) == 0) {
+					if (compareFixed<n>(local[i], child) == 0) {
 						seen = true;
 						break;
 					}
@@ -82,7 +82,7 @@ std::vector<Tet<n>> generate() {
 			}
 		}
 
-		#pragma omp critical
+//		#pragma omp critical
 		{
 			global.insert(global.end(), local.begin(), local.end());
 		}

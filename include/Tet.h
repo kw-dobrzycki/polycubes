@@ -26,6 +26,13 @@ struct Pos {
 		return *this;
 	}
 
+	Pos& operator-=(const Pos& v) {
+		x -= v.x;
+		y -= v.y;
+		z -= v.z;
+		return *this;
+	}
+
 	Pos operator~() const {
 		return {-x, -y, -z};
 	}
@@ -48,9 +55,15 @@ Pos offsets[6]{
 		{0,  -1, 0}
 };
 
-void translate(Pos* tet, unsigned n, const Pos& p) {
+void transAdd(Pos* tet, unsigned n, const Pos& p) {
 	for (int i = 0; i < n; ++i) {
 		tet[i] += p;
+	}
+}
+
+void transSub(Pos* tet, unsigned n, const Pos& p) {
+	for (int i = 0; i < n; ++i) {
+		tet[i] -= p;
 	}
 }
 

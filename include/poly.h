@@ -45,6 +45,11 @@ struct BasicEncoding {
 		}
 	}
 
+	BasicEncoding(const BasicEncoding& other)
+			: BasicEncoding(other.n) {
+		memcpy(encoding, other.encoding, size * sizeof(T));
+	}
+
 	~BasicEncoding() {
 		delete[] encoding;
 	}
@@ -108,20 +113,20 @@ Pos findMin(const Pos* tet, unsigned n) {
 	return corner;
 }
 
+template<unsigned n>
+void fixTet(Tet<n>& tet) {
+	Pos min = findMin(tet.units, n);
+	transSub(tet.units, n, min);
+}
+
 //returns E(A) > E(B) = 1
 template<unsigned n>
-int compareTet(Tet<n>& tetA, Tet<n>& tetB) {
+int compareFixed(Tet<n>& tetA, Tet<n>& tetB) {
 
 	thread_local EncodeType e1(n);
 	thread_local EncodeType e2(n);
 	e1.reset();
 	e2.reset();
-
-	Pos boundA = findMin(tetA.units, n);
-	Pos boundB = findMin(tetB.units, n);
-
-	translate(tetA.units, n, ~boundA);
-	translate(tetB.units, n, ~boundB);
 
 	e1(tetA.units);
 	e2(tetB.units);
@@ -130,6 +135,7 @@ int compareTet(Tet<n>& tetA, Tet<n>& tetB) {
 	if (e1 < e2) return -1;
 	return 0;
 }
+
 
 template<unsigned n>
 void orient(Tet<n>& tet) {
@@ -140,12 +146,21 @@ void orient(Tet<n>& tet) {
 	//iterate and compare each unit's x,y,z.
 
 	thread_local Tet<n> max{};
+	thread_local EncodeType maxEncoding(n);
+	thread_local EncodeType tetEncoding(n);
 	max = tet;
+	fixTet(max);
+	maxEncoding(max.units);
 
 	auto spinY = [&]() {
 		rotY(tet.units, n);
-		if (compareTet(tet, max) == 1) {
+		fixTet(tet);
+		tetEncoding.reset();
+		tetEncoding(tet.units);
+		if (tetEncoding > maxEncoding) {
 			max = tet;
+			maxEncoding.reset();
+			maxEncoding(max.units);
 		}
 	};
 
@@ -185,6 +200,9 @@ void orient(Tet<n>& tet) {
 	}
 
 	tet = max;
+
+	tetEncoding.reset();
+	maxEncoding.reset();
 }
 
 #endif //TETRIS_POLY_H
