@@ -22,6 +22,7 @@ std::vector<Tet<n>> generate() {
 	#pragma omp parallel for default(none) shared(previous, global, stems, maxStemRejections, localRejections)
 	for (int j = 0; j < previous.size(); ++j) {
 		auto& parent = previous[j];
+		EncodeType<n - 1> parentEncoding(parent);
 
 		std::vector<Tet<n>> local;
 
@@ -30,15 +31,15 @@ std::vector<Tet<n>> generate() {
 		size_t local_rejections = 0;
 		#endif
 
-		bool parent_critical[n - 1]{};
-		findCriticalRecursive<n - 2>(parent.remove(n - 2), parent.units[n - 2], parent_critical);
+		bool parentCritical[n - 1]{};
+		findCriticalRecursive<n - 2>(parent.remove(n - 2), parent.units[n - 2], parentCritical);
 
 		for (auto& space: parent.getFreeSpaces()) {
 
 			Tet<n> child = parent.insert(space);
 
 			bool critical[n]{};
-			memcpy(critical, parent_critical, (n - 1) * sizeof(bool));
+			memcpy(critical, parentCritical, (n - 1) * sizeof(bool));
 			findCriticalRecursive<n - 1>(parent, space, critical, false);
 
 			#ifdef DATA
@@ -46,24 +47,27 @@ std::vector<Tet<n>> generate() {
 			stems += noncritical.size();
 			#endif
 
-			Tet<n - 1> max_stem = parent;
+			Tet<n - 1> maxStem = parent;
+			EncodeType<n - 1> maxEncoding(maxStem);
 
 			for (int i = 0; i < n; ++i) {
 				if (critical[i]) continue;
 
 				Tet<n - 1> stem = child.remove(i);
-
 				orient<n - 1>(stem);
+				EncodeType<n - 1> stemEncoding(stem);
 
-				if (compareFixed<n - 1>(stem, max_stem) == 1)
-					max_stem = stem;
+				if (stemEncoding > maxEncoding) {
+					maxStem = stem;
+					maxEncoding = stemEncoding;
+				}
 
 				#ifdef DATA
 				else max_stem_rejections++;
 				#endif
 			}
 
-			if (compareFixed<n - 1>(parent, max_stem) == 0) {
+			if (compareFixed<n - 1>(parent, maxStem) == 0) {
 				orient<n>(child);
 				bool seen = false;
 				for (int i = 0; i < local.size(); ++i) {
@@ -142,6 +146,6 @@ std::vector<Tet<0>> generate() {
 
 int main() {
 	std::cout << "Threads: " << omp_get_max_threads() << std::endl;
-	auto results = generate<10>();
+	auto results = generate<13>();
 	return 0;
 }

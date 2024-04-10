@@ -10,52 +10,41 @@
 #include <set>
 #include <array>
 #include <cassert>
+#include <cstdint>
+
+using _encoding_type = std::int_fast64_t;
 
 template<class T>
-T ceildiv(T a, T b) {
+constexpr T ceildiv(T a, T b) {
 	return ((a + b - 1) / b);
 }
 
-template<class T>
+template<class T, unsigned n>
 struct BasicEncoding {
 
-	unsigned n;
-	size_t size;
-	T* encoding;
+	static constexpr size_t size{ceildiv((size_t) n * n * n, sizeof(T) * 8)};
+	T encoding[size]{};
 
 	struct Index {
 		size_t i, j;
 	};
 
-	static Index indexOf(const Pos& p, unsigned n) {
+	static Index indexOf(const Pos& p) {
 		size_t index = p.y * n * n + p.z * n + p.x;
 		return {index / (sizeof(T) * 8), index % (sizeof(T) * 8)};
 	}
 
-	explicit BasicEncoding(unsigned n)
-			: n(n),
-			  size(ceildiv((size_t) n * n * n, sizeof(T) * 8)),
-			  encoding(new T[size]{}) {
-	}
-
-	BasicEncoding(const Pos* tet, unsigned n)
-			: BasicEncoding(n) {
+	BasicEncoding(const Tet<n>& tet) {
 		for (int i = 0; i < n; ++i) {
-			set(tet[i]);
+			set(tet.units[i]);
 		}
 	}
 
-	BasicEncoding(const BasicEncoding& other)
-			: BasicEncoding(other.n) {
-		memcpy(encoding, other.encoding, size * sizeof(T));
-	}
-
-	~BasicEncoding() {
-		delete[] encoding;
-	}
+	BasicEncoding() = default;
 
 	bool operator<(const BasicEncoding& other) const {
-		assert(size == other.size);
+//		if (size < other.size) return true;
+//		if (size > other.size) return false;
 		for (int i = size - 1; i >= 0; --i) {
 			if (encoding[i] < other.encoding[i]) return true;
 			if (encoding[i] > other.encoding[i]) return false;
@@ -64,7 +53,8 @@ struct BasicEncoding {
 	}
 
 	bool operator>(const BasicEncoding& other) const {
-		assert(size == other.size);
+//		if (size > other.size) return true;
+//		if (size < other.size) return false;
 		for (int i = size - 1; i >= 0; --i) {
 			if (encoding[i] > other.encoding[i]) return true;
 			if (encoding[i] < other.encoding[i]) return false;
@@ -73,34 +63,33 @@ struct BasicEncoding {
 	}
 
 	bool operator==(const BasicEncoding& other) const {
-		assert(size == other.size);
+//		if (size != other.size) return false;
 		return memcmp(encoding, other.encoding, sizeof(T) * size);
 	}
 
-	void operator()(const Pos* tet) {
+	void encode(const Tet<n>& tet) {
 		for (int i = 0; i < n; ++i) {
-			set(tet[i]);
+			set(tet.units[i]);
 		}
 	}
 
 	void set(const Pos& p) {
-		Index i = indexOf(p, n);
+		Index i = indexOf(p);
 		encoding[i.i] |= 0b1 << i.j;
 	}
 
 	void unset(const Pos& p) {
-		Index i = indexOf(p, n);
+		Index i = indexOf(p);
 		encoding[i.i] &= ~(0b1 << i.j);
 	}
 
 	void reset() {
-		for (int i = 0; i < size; ++i) {
-			encoding[i] = (T) 0;
-		}
+		memset(encoding, 0, sizeof(T) * size);
 	}
 };
 
-using EncodeType = BasicEncoding<unsigned>;
+template<unsigned n>
+using EncodeType = BasicEncoding<_encoding_type, n>;
 
 Pos findMin(const Pos* tet, unsigned n) {
 	Pos corner{*tet};
@@ -123,13 +112,8 @@ void fixTet(Tet<n>& tet) {
 template<unsigned n>
 int compareFixed(Tet<n>& tetA, Tet<n>& tetB) {
 
-	thread_local EncodeType e1(n);
-	thread_local EncodeType e2(n);
-	e1.reset();
-	e2.reset();
-
-	e1(tetA.units);
-	e2(tetB.units);
+	EncodeType<n> e1(tetA);
+	EncodeType<n> e2(tetB);
 
 	if (e1 > e2) return 1;
 	if (e1 < e2) return -1;
@@ -145,22 +129,19 @@ void orient(Tet<n>& tet) {
 	//then sort all units within both tets
 	//iterate and compare each unit's x,y,z.
 
-	thread_local Tet<n> max{};
-	thread_local EncodeType maxEncoding(n);
-	thread_local EncodeType tetEncoding(n);
-	max = tet;
+	Tet<n> max = tet;
 	fixTet(max);
-	maxEncoding(max.units);
+	EncodeType<n> maxEncoding(max);
+	EncodeType<n> tetEncoding;
 
 	auto spinY = [&]() {
 		rotY(tet.units, n);
 		fixTet(tet);
 		tetEncoding.reset();
-		tetEncoding(tet.units);
+		tetEncoding.encode(tet);
 		if (tetEncoding > maxEncoding) {
 			max = tet;
-			maxEncoding.reset();
-			maxEncoding(max.units);
+			maxEncoding = tetEncoding;
 		}
 	};
 
@@ -200,9 +181,6 @@ void orient(Tet<n>& tet) {
 	}
 
 	tet = max;
-
-	tetEncoding.reset();
-	maxEncoding.reset();
 }
 
 #endif //TETRIS_POLY_H
