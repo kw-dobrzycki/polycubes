@@ -8,71 +8,85 @@
 #include "Tet.h"
 
 template<unsigned n>
-void APUtil(const Tet<n>& tet, int u, bool visited[],
-			int disc[], int low[], int& time, int parent,
-			bool isAP[]) {
-	// Count of children in DFS Tree
-	int children = 0;
+bool labelCut(const Tet<n>& tet, size_t r, const unsigned endpoints[n], unsigned edges) {
+	auto cut = tet.remove(r);
 
-	// Mark the current node as visited
-	visited[u] = true;
+	size_t q[n - 1]{};
+	size_t p1 = 0;
+	size_t p2 = 1;
 
-	// Initialize discovery time and low value
-	disc[u] = low[u] = ++time;
+	size_t labels[n - 1]{};
 
-	// Go through all vertices adjacent to this
-	for (int i = 0; i < n; ++i) {
-		Pos d = tet.units[u] - tet.units[i];
-		if (!d.isUnit()) continue;
+	bool seen[n - 1]{};
 
-		// If v is not visited yet, then make it a child of u
-		// in DFS tree and recur for it
-		if (!visited[i]) {
-			children++;
-			APUtil(tet, i, visited, disc, low, time, u, isAP);
+	int maxLabel = 0;
+	for (int i = 0; i < n - 1; ++i) {
+		if (seen[i]) continue;
+		maxLabel++;
+		seen[i] = true;
+		labels[i] = maxLabel;
+		p1 = 0;
+		p2 = 1;
+		q[0] = i;
 
-			// Check if the subtree rooted with i has
-			// a connection to one of the ancestors of u
-			low[u] = std::min(low[u], low[i]);
-
-			// If u is not root and low value of one of
-			// its child is more than discovery value of u.
-			if (parent != -1 && low[i] >= disc[u])
-				isAP[u] = true;
+		while (p1 < p2) {
+			size_t j = q[p1++];
+			for (int k = 0; k < n - 1; ++k) {
+				if ((cut.units[j] - cut.units[k]).isUnit() && !seen[k]) {
+					seen[k] = true;
+					labels[k] = maxLabel;
+					q[p2++] = k;
+				}
+			}
 		}
-			// Update low value of u for parent function calls.
-		else if (i != parent)
-			low[u] = std::min(low[u], disc[i]);
-
 	}
 
-	// If u is root of DFS tree and has two or more children.
-	if (parent == -1 && children > 1)
-		isAP[u] = true;
+	//count the unique labels
+	unsigned connectingComponents = 0;
+	bool seenLabels[n]{};
+	for (int i = 0; i < edges; ++i) {
+		if (endpoints[i] == r) continue; //this endpoint doesn't connect any components
+		int j = endpoints[i] - (endpoints[i] > r);
+		//all will have been seen, seen is now used to count uniques
+		if (!seenLabels[labels[j]]) {
+			seenLabels[labels[j]] = true;
+			connectingComponents++;
+		}
+	}
+
+	return connectingComponents < maxLabel;
 }
 
 template<unsigned n>
-std::vector<size_t> AP(const Tet<n>& tet) {
-	int disc[n]{};
-	int low[n]{};
-	bool isAP[n]{};
-	bool visited[n]{};
-	int time = 0, par = -1;
+void findCriticalRecursive(const Tet<n>& tet, const Pos& p, bool critical[n + 1], bool recurse = true) {
+	if (recurse) findCriticalRecursive(tet.remove(n - 1), tet.units[n - 1], critical); //todo removing is inefficient
 
-	// Adding this loop so that the
-	// code works even if we are given
-	// disconnected graph
-	for (int u = 0; u < n; u++)
-		if (!visited[u])
-			APUtil(tet, u, visited, disc, low,
-				   time, par, isAP);
-
-	std::vector<size_t> r;
-	r.reserve(n);
+	unsigned endpoints[n]{};
+	unsigned neighbours = 0;
 	for (int i = 0; i < n; ++i) {
-		if (!isAP[i]) r.push_back(i);
+		if ((tet.units[i] - p).isUnit()) {
+			endpoints[neighbours++] = i;
+		}
 	}
-	return r;
+
+	//check if p has only one neighbour, then it must be crit
+	if (neighbours == 1) {
+		critical[endpoints[0]] = true;
+		critical[n] = false;
+		return;
+	}
+
+	for (int i = 0; i < n; ++i) {
+		if (!critical[i]) continue;
+		critical[i] = labelCut(tet, i, endpoints, neighbours);
+	}
 }
+
+template<>
+void findCriticalRecursive(const Tet<1>&, const Pos&, bool critical[2], bool) {
+	critical[0] = false;
+	critical[1] = false;
+}
+
 
 #endif //TETRIS_CRITICAL_H

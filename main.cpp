@@ -10,60 +10,6 @@
 static auto last = std::chrono::high_resolution_clock::now();
 
 template<unsigned n>
-bool connected(const Tet<n>& tet) {
-
-	size_t q[n]{};
-	size_t p1 = 0;
-	size_t p2 = 1;
-
-	bool seen[n]{};
-	seen[0] = 1;
-
-	while (p1 < p2) {
-		size_t i = q[p1++];
-		const Pos& ui = tet.units[i];
-
-		for (int j = 0; j < n; ++j) {
-			const Pos& uj = tet.units[j];
-			if ((uj - ui).isUnit()) {
-				if (seen[j]) continue;
-				seen[j] = true;
-				q[p2++] = j;
-			}
-		}
-	}
-
-	for (int i = 0; i < n; ++i) {
-		if (!seen[i]) return false;
-	}
-
-	return true;
-}
-
-template<unsigned n>
-std::vector<size_t> findNonCritical(const Tet<n>& tet) {
-	std::vector<size_t> noncrit;
-	noncrit.reserve(n);
-
-	for (int i = 0; i < n; ++i) {
-		auto removed = tet.remove(i);
-		if (connected(removed)) noncrit.push_back(i);
-	}
-
-	return noncrit;
-}
-
-template<>
-std::vector<size_t> findNonCritical(const Tet<1>&) {
-	return {0, 1};
-}
-
-template<unsigned n>
-std::vector<size_t> findNonCriticalFast(const Tet<n>& tet) {
-	return AP(tet);
-}
-
-template<unsigned n>
 std::vector<Tet<n>> generate() {
 	std::vector<Tet<n - 1>> previous = generate<n - 1>();
 
@@ -84,10 +30,16 @@ std::vector<Tet<n>> generate() {
 		size_t local_rejections = 0;
 		#endif
 
+		bool parent_critical[n - 1]{};
+		findCriticalRecursive<n - 2>(parent.remove(n - 2), parent.units[n - 2], parent_critical);
+
 		for (auto& space: parent.getFreeSpaces()) {
 
 			Tet<n> child = parent.insert(space);
-			std::vector<size_t> noncritical = findNonCriticalFast(child);
+
+			bool critical[n]{};
+			memcpy(critical, parent_critical, (n - 1) * sizeof(bool));
+			findCriticalRecursive<n - 1>(parent, space, critical, false);
 
 			#ifdef DATA
 			#pragma omp atomic
@@ -96,8 +48,10 @@ std::vector<Tet<n>> generate() {
 
 			Tet<n - 1> max_stem = parent;
 
-			for (auto& noncrit: noncritical) {
-				Tet<n - 1> stem = child.remove(noncrit);
+			for (int i = 0; i < n; ++i) {
+				if (critical[i]) continue;
+
+				Tet<n - 1> stem = child.remove(i);
 
 				orient<n - 1>(stem);
 
@@ -141,12 +95,12 @@ std::vector<Tet<n>> generate() {
 		#endif
 	}
 
-	#ifdef DATA
 	std::cout << "N=" << n << ": " << global.size() << " time "
 			  << std::chrono::duration_cast<std::chrono::milliseconds>(
 					  std::chrono::high_resolution_clock::now() - last).count() << "ms"
 			  << std::endl;
 
+	#ifdef DATA
 	std::cout << "Non-max stems / connected stems: " <<
 			  maxStemRejections << "/" << stems << " (" <<
 			  (float) maxStemRejections / (float) stems <<
@@ -165,6 +119,16 @@ std::vector<Tet<n>> generate() {
 }
 
 template<>
+std::vector<Tet<2>> generate() {
+	Pos unit[2]{{0, 0, 0},
+				{0, 1, 0}};
+	auto tet = Tet<2>{unit};
+	orient(tet);
+	last = std::chrono::high_resolution_clock::now();
+	return {tet};
+}
+
+template<>
 std::vector<Tet<1>> generate() {
 	Pos unit{0, 0, 0};
 	last = std::chrono::high_resolution_clock::now();
@@ -178,6 +142,6 @@ std::vector<Tet<0>> generate() {
 
 int main() {
 	std::cout << "Threads: " << omp_get_max_threads() << std::endl;
-	auto results = generate<8>();
+	auto results = generate<10>();
 	return 0;
 }
