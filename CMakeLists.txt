@@ -9,6 +9,7 @@ add_executable(tetris
         main.cpp
         include/poly.h
         include/Tet.h
+        include/critical.h
 )
 
 find_package(OpenMP REQUIRED)
