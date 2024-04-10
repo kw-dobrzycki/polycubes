@@ -9,25 +9,23 @@ static auto last = std::chrono::high_resolution_clock::now();
 template<unsigned n>
 bool connected(const Tet<n>& tet) {
 
-	thread_local size_t stack[n]{};
-	thread_local size_t pointer;
-	pointer = 1;
+	size_t q[n]{};
+	size_t p1 = 0;
+	size_t p2 = 1;
 
-	thread_local bool seen[n]{};
-	for (int i = 0; i < n; ++i) {
-		seen[i] = 0;
-	}
+	bool seen[n]{};
+	seen[0] = 1;
 
-	while (pointer > 0) {
-		size_t i = stack[--pointer];
+	while (p1 < p2) {
+		size_t i = q[p1++];
 		const Pos& ui = tet.units[i];
-		if (seen[i]) continue;
-		seen[i] = true;
 
 		for (int j = 0; j < n; ++j) {
 			const Pos& uj = tet.units[j];
-			if ((uj - ui).isUnit() && !seen[j]) {
-				stack[pointer++] = j;
+			if ((uj - ui).isUnit()) {
+				if (seen[j]) continue;
+				seen[j] = true;
+				q[p2++] = j;
 			}
 		}
 	}
@@ -45,11 +43,23 @@ std::vector<Tet<n>> generate() {
 
 	std::vector<Tet<n>> global;
 
-//	#pragma omp parallel for default(none) shared(previous, global)
+	size_t stems = 0;
+	size_t connectionRejections = 0;
+	size_t maxStemRejections = 0;
+	size_t localRejections = 0;
+
+	#pragma omp parallel for default(none) shared(previous, global, stems, maxStemRejections, connectionRejections, localRejections)
 	for (int j = 0; j < previous.size(); ++j) {
 		auto& parent = previous[j];
 
 		std::vector<Tet<n>> local;
+
+		size_t max_stem_rejections = 0;
+		size_t connection_rejections = 0;
+		size_t local_rejections = 0;
+
+		#pragma omp atomic
+		stems += parent.getFreeSpaces().size() * n;
 
 		for (auto& space: parent.getFreeSpaces()) {
 
@@ -60,12 +70,17 @@ std::vector<Tet<n>> generate() {
 			for (unsigned i = 0; i < n; ++i) {
 
 				Tet<n - 1> stem = child.remove(i);
-				if (!connected<n - 1>(stem)) continue;
+				if (!connected<n - 1>(stem)) {
+					connection_rejections++;
+					continue;
+				}
 
 				orient<n - 1>(stem);
 
 				if (compareFixed<n - 1>(stem, max_stem) == 1) {
 					max_stem = stem;
+				} else {
+					max_stem_rejections++;
 				}
 			}
 
@@ -75,6 +90,7 @@ std::vector<Tet<n>> generate() {
 				for (int i = 0; i < local.size(); ++i) {
 					if (compareFixed<n>(local[i], child) == 0) {
 						seen = true;
+						local_rejections++;
 						break;
 					}
 				}
@@ -82,15 +98,43 @@ std::vector<Tet<n>> generate() {
 			}
 		}
 
-//		#pragma omp critical
+		#pragma omp critical
 		{
 			global.insert(global.end(), local.begin(), local.end());
 		}
+
+		#pragma omp atomic
+		maxStemRejections += max_stem_rejections;
+
+		#pragma omp atomic
+		connectionRejections += connection_rejections;
+
+		#pragma omp atomic
+		localRejections += local_rejections;
 	}
 	std::cout << "N=" << n << ": " << global.size() << " time "
 			  << std::chrono::duration_cast<std::chrono::milliseconds>(
 					  std::chrono::high_resolution_clock::now() - last).count() << "ms"
 			  << std::endl;
+
+	std::cout << "Disconnected stems / total stems: " <<
+			  connectionRejections << "/" << stems << " (" <<
+			  (float) connectionRejections / (float) stems <<
+			  ")" << std::endl;
+
+	std::cout << "Non-max stems / connected stems: " <<
+			  maxStemRejections << "/" << stems - connectionRejections << " (" <<
+			  (float) maxStemRejections / (float) (stems - connectionRejections) <<
+			  ")" << std::endl;
+
+	std::cout << "Locally non-unique rejections: " << localRejections << std::endl;
+	auto total = maxStemRejections + connectionRejections + localRejections;
+
+	std::cout << "Total ejection rate: " <<
+			  total << "/" << total + global.size() << " (" <<
+			  (float) total / (total + global.size()) <<
+			  ")" << std::endl << std::endl;
+
 	last = std::chrono::high_resolution_clock::now();
 	return global;
 }
@@ -109,6 +153,5 @@ std::vector<Tet<0>> generate() {
 int main() {
 	std::cout << "Threads: " << omp_get_max_threads() << std::endl;
 	auto results = generate<10>();
-	std::cout << results.size() << std::endl;
 	return 0;
 }
