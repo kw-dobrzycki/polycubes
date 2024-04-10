@@ -19,7 +19,7 @@ std::vector<Tet<n>> generate() {
 	size_t maxStemRejections = 0;
 	size_t localRejections = 0;
 
-	#pragma omp parallel for default(none) shared(previous, global, stems, maxStemRejections, localRejections)
+//	#pragma omp parallel for default(none) shared(previous, global, stems, maxStemRejections, localRejections)
 	for (int j = 0; j < previous.size(); ++j) {
 		auto& parent = previous[j];
 		EncodeType<n - 1> parentEncoding(parent);
@@ -47,8 +47,7 @@ std::vector<Tet<n>> generate() {
 			stems += noncritical.size();
 			#endif
 
-			Tet<n - 1> maxStem = parent;
-			EncodeType<n - 1> maxEncoding(maxStem);
+			bool writer = true;
 
 			for (int i = 0; i < n; ++i) {
 				if (critical[i]) continue;
@@ -57,9 +56,9 @@ std::vector<Tet<n>> generate() {
 				orient<n - 1>(stem);
 				EncodeType<n - 1> stemEncoding(stem);
 
-				if (stemEncoding > maxEncoding) {
-					maxStem = stem;
-					maxEncoding = stemEncoding;
+				if (stemEncoding > parentEncoding) {
+					writer = false;
+					break;
 				}
 
 				#ifdef DATA
@@ -67,7 +66,7 @@ std::vector<Tet<n>> generate() {
 				#endif
 			}
 
-			if (compareFixed<n - 1>(parent, maxStem) == 0) {
+			if (writer) {
 				orient<n>(child);
 				bool seen = false;
 				for (int i = 0; i < local.size(); ++i) {
@@ -146,6 +145,6 @@ std::vector<Tet<0>> generate() {
 
 int main() {
 	std::cout << "Threads: " << omp_get_max_threads() << std::endl;
-	auto results = generate<13>();
+	auto results = generate<10>();
 	return 0;
 }

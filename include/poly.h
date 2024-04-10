@@ -12,7 +12,7 @@
 #include <cassert>
 #include <cstdint>
 
-using _encoding_type = std::int_fast64_t;
+using _encoding_type = std::uint32_t;
 
 template<class T>
 constexpr T ceildiv(T a, T b) {
