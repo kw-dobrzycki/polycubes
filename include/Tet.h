@@ -8,6 +8,8 @@
 #include <vector>
 #include <cstring>
 
+constexpr unsigned maxUnits = 16;
+
 struct Pos {
 	int x{}, y{}, z{};
 

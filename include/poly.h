@@ -12,7 +12,7 @@
 #include <cassert>
 #include <cstdint>
 
-using _encoding_type = std::uint32_t;
+using _encoding_type = std::uint32_t; //todo 64 broken. big bug somewhere
 
 template<class T>
 constexpr T ceildiv(T a, T b) {
@@ -63,8 +63,10 @@ struct BasicEncoding {
 	}
 
 	bool operator==(const BasicEncoding& other) const {
-//		if (size != other.size) return false;
-		return memcmp(encoding, other.encoding, sizeof(T) * size);
+		for (int i = 0; i < size; ++i) {
+			if (encoding[i] != other.encoding[i]) return false;
+		}
+		return true;
 	}
 
 	void encode(const Tet<n>& tet) {
@@ -102,24 +104,60 @@ Pos findMin(const Pos* tet, unsigned n) {
 	return corner;
 }
 
+Pos findMax(const Pos* tet, unsigned n) {
+	Pos corner{*tet};
+	//find the bound
+	for (int i = 0; i < n; ++i) {
+		corner.x = std::max(corner.x, tet[i].x);
+		corner.y = std::max(corner.y, tet[i].y);
+		corner.z = std::max(corner.z, tet[i].z);
+	}
+	return corner;
+}
+
 template<unsigned n>
 void fixTet(Tet<n>& tet) {
 	Pos min = findMin(tet.units, n);
 	transSub(tet.units, n, min);
 }
 
-//returns E(A) > E(B) = 1
 template<unsigned n>
-int compareFixed(Tet<n>& tetA, Tet<n>& tetB) {
+bool volumeCompare(Tet<n>& A, Tet<n>& B) {
+	//returns A is definitely > B
+	Pos topA = findMax(A.units, n) - findMin(A.units, n);
+	Pos topB = findMax(B.units, n) - findMin(B.units, n);
+	auto sort = [](Pos& p) {
+		if (p.x > p.y) {
+			auto t = p.y;
+			p.y = p.x;
+			p.x = t;
+		}
+		if (p.z > p.y) {
+			auto t = p.y;
+			p.y = p.z;
+			p.z = t;
+		}
+		if (p.x > p.z) {
+			auto t = p.z;
+			p.z = p.x;
+			p.x = t;
+		}
+	};
 
-	EncodeType<n> e1(tetA);
-	EncodeType<n> e2(tetB);
+	auto max = [](Pos& p) {
+		return p.x > p.y ?
+			   p.x > p.z ? p.x : p.z
+						 : p.z > p.y ? p.z : p.y;
+	};
+//	sort(topA);
+//	sort(topB);
 
-	if (e1 > e2) return 1;
-	if (e1 < e2) return -1;
-	return 0;
+	auto mA = max(topA);
+	auto mB = max(topB);
+	if (mA > mB) return true;
+	if (mA < mB) return false;
+	return false;
 }
-
 
 template<unsigned n>
 void orient(Tet<n>& tet) {

@@ -8,7 +8,8 @@
 #include "Tet.h"
 
 template<unsigned n>
-bool labelCut(const Tet<n>& tet, size_t r, const unsigned endpoints[n], unsigned edges) {
+bool labelCut(const Tet<n>& tet, size_t r, const unsigned endpoints[6], unsigned edges) {
+	//remove a vertex, label all connected components
 	auto cut = tet.remove(r);
 
 	size_t q[n - 1]{};
@@ -54,6 +55,9 @@ bool labelCut(const Tet<n>& tet, size_t r, const unsigned endpoints[n], unsigned
 		}
 	}
 
+	//if the new vertex is incident to less than the number of components connected by the removed vertex,
+	//some components will remain disconnected when the new vertex is added, so the removed vertex is
+	//critical
 	return connectingComponents < maxLabel;
 }
 
@@ -61,7 +65,7 @@ template<unsigned n>
 void findCriticalRecursive(const Tet<n>& tet, const Pos& p, bool critical[n + 1], bool recurse = true) {
 	if (recurse) findCriticalRecursive(tet.remove(n - 1), tet.units[n - 1], critical); //todo removing is inefficient
 
-	unsigned endpoints[n]{};
+	unsigned endpoints[6]{};
 	unsigned neighbours = 0;
 	for (int i = 0; i < n; ++i) {
 		if ((tet.units[i] - p).isUnit()) {

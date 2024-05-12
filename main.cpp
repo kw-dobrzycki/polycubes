@@ -19,6 +19,10 @@ std::vector<Tet<n>> generate() {
 	size_t maxStemRejections = 0;
 	size_t localRejections = 0;
 
+	size_t rej = 0;
+	size_t unrej = 0;
+	size_t writers = 0;
+
 //	#pragma omp parallel for default(none) shared(previous, global, stems, maxStemRejections, localRejections)
 	for (int j = 0; j < previous.size(); ++j) {
 		auto& parent = previous[j];
@@ -51,15 +55,27 @@ std::vector<Tet<n>> generate() {
 
 			for (int i = 0; i < n; ++i) {
 				if (critical[i]) continue;
-
 				Tet<n - 1> stem = child.remove(i);
-				orient<n - 1>(stem);
-				EncodeType<n - 1> stemEncoding(stem);
+				stems++;
 
-				if (stemEncoding > parentEncoding) {
+				if (volumeCompare(parent, stem)) {
+					continue;
+				}
+				if (volumeCompare(stem, parent)) {
 					writer = false;
 					break;
 				}
+
+				orient<n - 1>(stem);
+				EncodeType<n - 1> stemEncoding(stem);
+				unrej++;
+
+				if (stemEncoding > parentEncoding) {
+					writer = false;
+					rej++;
+					break;
+				}
+				writers++;
 
 				#ifdef DATA
 				else max_stem_rejections++;
@@ -70,7 +86,7 @@ std::vector<Tet<n>> generate() {
 				orient<n>(child);
 				bool seen = false;
 				for (int i = 0; i < local.size(); ++i) {
-					if (compareFixed<n>(local[i], child) == 0) {
+					if (EncodeType<n>(local[i]) == EncodeType<n>(child)) {
 						seen = true;
 
 						#ifdef DATA
@@ -102,6 +118,8 @@ std::vector<Tet<n>> generate() {
 			  << std::chrono::duration_cast<std::chrono::milliseconds>(
 					  std::chrono::high_resolution_clock::now() - last).count() << "ms"
 			  << std::endl;
+
+//	std::cout <<"stems " <<stems << " rej " << rej << " unrej " << unrej << " writers " << writers << std::endl;
 
 	#ifdef DATA
 	std::cout << "Non-max stems / connected stems: " <<
