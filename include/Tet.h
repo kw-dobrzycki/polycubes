@@ -70,29 +70,32 @@ void transSub(Pos* tet, unsigned n, const Pos& p) {
 }
 
 void rotX(Pos* tet, unsigned n, unsigned i = 1) {
-	if (!(i % 2)) return;
-	for (int j = 0; j < n; ++j) {
-		auto t = tet[j].z;
-		tet[j].z = -tet[j].y;
-		tet[j].y = t;
+	for (int k = 0; k < i % 4; k++) {
+		for (int j = 0; j < n; ++j) {
+			auto t = tet[j].z;
+			tet[j].z = -tet[j].y;
+			tet[j].y = t;
+		}
 	}
 }
 
 void rotY(Pos* tet, unsigned n, unsigned i = 1) {
-	if (!(i % 2)) return;
-	for (int j = 0; j < n; ++j) {
-		auto t = tet[j].x;
-		tet[j].x = -tet[j].z;
-		tet[j].z = t;
+	for (int k = 0; k < i % 4; k++) {
+		for (int j = 0; j < n; ++j) {
+			auto t = tet[j].x;
+			tet[j].x = -tet[j].z;
+			tet[j].z = t;
+		}
 	}
 }
 
 void rotZ(Pos* tet, unsigned n, unsigned i = 1) {
-	if (!(i % 2)) return;
-	for (int j = 0; j < n; ++j) {
-		auto t = tet[j].y;
-		tet[j].y = -tet[j].x;
-		tet[j].x = t;
+	for (int k = 0; k < i % 4; k++) {
+		for (int j = 0; j < n; ++j) {
+			auto t = tet[j].y;
+			tet[j].y = -tet[j].x;
+			tet[j].x = t;
+		}
 	}
 }
 

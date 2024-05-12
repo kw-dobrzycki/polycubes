@@ -41,6 +41,7 @@ std::vector<Tet<n>> generate() {
 		for (auto& space: parent.getFreeSpaces()) {
 
 			Tet<n> child = parent.insert(space);
+			orient(child);
 
 			bool critical[n]{};
 			memcpy(critical, parentCritical, (n - 1) * sizeof(bool));
@@ -53,37 +54,33 @@ std::vector<Tet<n>> generate() {
 
 			bool writer = true;
 
+			auto encode = [](Pos p) -> int {
+				int i = n;
+				return p.y * i * i + p.z * i + p.x;
+			};
+
+			//find the largest extender cube
+			unsigned largestIndex = n - 1;
+			int largestEncoding = 0;
 			for (int i = 0; i < n; ++i) {
 				if (critical[i]) continue;
-				Tet<n - 1> stem = child.remove(i);
-				stems++;
+				auto encoding = encode(child.units[i]);
+				if (encoding > largestEncoding) {
+					largestIndex = i;
+					largestEncoding = encoding;
+				}
+			}
 
-				if (volumeCompare(parent, stem)) {
+			if (largestIndex < n - 1) {
+				Tet<n - 1> largestStem = child.remove(largestIndex);
+				if (!equalVolume(parent, largestStem)) {
 					continue;
 				}
-				if (volumeCompare(stem, parent)) {
-					writer = false;
-					break;
-				}
-
-				orient<n - 1>(stem);
-				EncodeType<n - 1> stemEncoding(stem);
-				unrej++;
-
-				if (stemEncoding > parentEncoding) {
-					writer = false;
-					rej++;
-					break;
-				}
-				writers++;
-
-				#ifdef DATA
-				else max_stem_rejections++;
-				#endif
+				orient(largestStem);
+				writer = EncodeType<n - 1>(largestStem) == parentEncoding;
 			}
 
 			if (writer) {
-				orient<n>(child);
 				bool seen = false;
 				for (int i = 0; i < local.size(); ++i) {
 					if (EncodeType<n>(local[i]) == EncodeType<n>(child)) {
@@ -163,6 +160,6 @@ std::vector<Tet<0>> generate() {
 
 int main() {
 	std::cout << "Threads: " << omp_get_max_threads() << std::endl;
-	auto results = generate<10>();
+	auto results = generate<11>();
 	return 0;
 }

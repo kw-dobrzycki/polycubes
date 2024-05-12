@@ -160,6 +160,38 @@ bool volumeCompare(Tet<n>& A, Tet<n>& B) {
 }
 
 template<unsigned n>
+bool equalVolume(const Tet<n>& A, const Tet<n>& B) {
+	Pos topA = findMax(A.units, n) - findMin(A.units, n);
+	Pos topB = findMax(B.units, n) - findMin(B.units, n);
+	auto sort = [](Pos& p) {
+		if (p.x > p.y) {
+			auto t = p.y;
+			p.y = p.x;
+			p.x = t;
+		}
+		if (p.z > p.y) {
+			auto t = p.y;
+			p.y = p.z;
+			p.z = t;
+		}
+		if (p.x > p.z) {
+			auto t = p.z;
+			p.z = p.x;
+			p.x = t;
+		}
+	};
+
+	auto max = [](Pos& p) {
+		return p.x > p.y ?
+			   p.x > p.z ? p.x : p.z
+						 : p.z > p.y ? p.z : p.y;
+	};
+	sort(topA);
+	sort(topB);
+	return topA == topB;
+}
+
+template<unsigned n>
 void orient(Tet<n>& tet) {
 	//rotate the tet 24 times and keep a current max
 	//at each rotation, compare the bounds to the current max (y > z > x).
