@@ -215,37 +215,67 @@ void orient(Tet<n>& tet) {
 		}
 	};
 
+	Pos bound = findMax(max.units, n) - findMin(max.units, n);
+
+	auto rbx = [](Pos& p) {
+		rotX(&p, 1);
+		p.z *= -1;
+	};
+
+	auto rby = [](Pos& p) {
+		rotY(&p, 1);
+		p.x *= -1;
+	};
+
+	auto rbz = [](Pos& p) {
+		rotZ(&p, 1);
+		p.y *= -1;
+	};
+
 	//top on top
-	for (int j = 0; j < 4; ++j) {
-		spinY();
-	}
+	if (bound.y >= bound.x && bound.y >= bound.z)
+		for (int j = 0; j < 4; ++j) {
+			spinY();
+		}
 
 	//back on top
 	rotX(tet.units, n);
+	rbx(bound);
+	if (bound.y >= bound.x && bound.y >= bound.z)
 	for (int j = 0; j < 4; ++j) {
 		spinY();
 	}
 
 	//left on top
 	rotZ(tet.units, n);
+	rbz(bound);
+	if (bound.y >= bound.x && bound.y >= bound.z)
 	for (int j = 0; j < 4; ++j) {
 		spinY();
 	}
 
 	//front on top
 	rotZ(tet.units, n);
+	rbz(bound);
+	if (bound.y >= bound.x && bound.y >= bound.z)
 	for (int j = 0; j < 4; ++j) {
 		spinY();
 	}
 
 	//right on top
 	rotZ(tet.units, n);
+	rbz(bound);
+	if (bound.y >= bound.x && bound.y >= bound.z)
 	for (int j = 0; j < 4; ++j) {
 		spinY();
 	}
 
 	//bottom on top
+	rotZ(tet.units, n);
 	rotX(tet.units, n);
+//	rbz(bound);
+//	rbx(bound);
+//	if (bound.y >= bound.x && bound.y >= bound.z)
 	for (int j = 0; j < 4; ++j) {
 		spinY();
 	}
