@@ -11,6 +11,7 @@
 #include <array>
 #include <cassert>
 #include <cstdint>
+#include <algorithm>
 
 using _encoding_type = std::uint32_t; //todo 64 broken. big bug somewhere
 
@@ -43,8 +44,6 @@ struct BasicEncoding {
 	BasicEncoding() = default;
 
 	bool operator<(const BasicEncoding& other) const {
-//		if (size < other.size) return true;
-//		if (size > other.size) return false;
 		for (int i = size - 1; i >= 0; --i) {
 			if (encoding[i] < other.encoding[i]) return true;
 			if (encoding[i] > other.encoding[i]) return false;
@@ -53,8 +52,6 @@ struct BasicEncoding {
 	}
 
 	bool operator>(const BasicEncoding& other) const {
-//		if (size > other.size) return true;
-//		if (size < other.size) return false;
 		for (int i = size - 1; i >= 0; --i) {
 			if (encoding[i] > other.encoding[i]) return true;
 			if (encoding[i] < other.encoding[i]) return false;
@@ -122,44 +119,6 @@ void fixTet(Tet<n>& tet) {
 }
 
 template<unsigned n>
-bool volumeCompare(Tet<n>& A, Tet<n>& B) {
-	//returns A is definitely > B
-	Pos topA = findMax(A.units, n) - findMin(A.units, n);
-	Pos topB = findMax(B.units, n) - findMin(B.units, n);
-	auto sort = [](Pos& p) {
-		if (p.x > p.y) {
-			auto t = p.y;
-			p.y = p.x;
-			p.x = t;
-		}
-		if (p.z > p.y) {
-			auto t = p.y;
-			p.y = p.z;
-			p.z = t;
-		}
-		if (p.x > p.z) {
-			auto t = p.z;
-			p.z = p.x;
-			p.x = t;
-		}
-	};
-
-	auto max = [](Pos& p) {
-		return p.x > p.y ?
-			   p.x > p.z ? p.x : p.z
-						 : p.z > p.y ? p.z : p.y;
-	};
-//	sort(topA);
-//	sort(topB);
-
-	auto mA = max(topA);
-	auto mB = max(topB);
-	if (mA > mB) return true;
-	if (mA < mB) return false;
-	return false;
-}
-
-template<unsigned n>
 bool equalVolume(const Tet<n>& A, const Tet<n>& B) {
 	Pos topA = findMax(A.units, n) - findMin(A.units, n);
 	Pos topB = findMax(B.units, n) - findMin(B.units, n);
@@ -181,11 +140,6 @@ bool equalVolume(const Tet<n>& A, const Tet<n>& B) {
 		}
 	};
 
-	auto max = [](Pos& p) {
-		return p.x > p.y ?
-			   p.x > p.z ? p.x : p.z
-						 : p.z > p.y ? p.z : p.y;
-	};
 	sort(topA);
 	sort(topB);
 	return topA == topB;
@@ -242,43 +196,43 @@ void orient(Tet<n>& tet) {
 	rotX(tet.units, n);
 	rbx(bound);
 	if (bound.y >= bound.x && bound.y >= bound.z)
-	for (int j = 0; j < 4; ++j) {
-		spinY();
-	}
+		for (int j = 0; j < 4; ++j) {
+			spinY();
+		}
 
 	//left on top
 	rotZ(tet.units, n);
 	rbz(bound);
 	if (bound.y >= bound.x && bound.y >= bound.z)
-	for (int j = 0; j < 4; ++j) {
-		spinY();
-	}
+		for (int j = 0; j < 4; ++j) {
+			spinY();
+		}
 
 	//front on top
 	rotZ(tet.units, n);
 	rbz(bound);
 	if (bound.y >= bound.x && bound.y >= bound.z)
-	for (int j = 0; j < 4; ++j) {
-		spinY();
-	}
+		for (int j = 0; j < 4; ++j) {
+			spinY();
+		}
 
 	//right on top
 	rotZ(tet.units, n);
 	rbz(bound);
 	if (bound.y >= bound.x && bound.y >= bound.z)
-	for (int j = 0; j < 4; ++j) {
-		spinY();
-	}
+		for (int j = 0; j < 4; ++j) {
+			spinY();
+		}
 
 	//bottom on top
 	rotZ(tet.units, n);
 	rotX(tet.units, n);
-//	rbz(bound);
-//	rbx(bound);
-//	if (bound.y >= bound.x && bound.y >= bound.z)
-	for (int j = 0; j < 4; ++j) {
-		spinY();
-	}
+	rbz(bound);
+	rbx(bound);
+	if (bound.y >= bound.x && bound.y >= bound.z)
+		for (int j = 0; j < 4; ++j) {
+			spinY();
+		}
 
 	tet = max;
 }
