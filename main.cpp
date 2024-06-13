@@ -99,7 +99,9 @@ std::vector<Tet<n>> generate() {
 			if (writer) {
 				local.push_back(child);
 			} else {
+				#ifdef DATA
 				maxStemRejections++;
+				#endif
 			}
 		}
 
